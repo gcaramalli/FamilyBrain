@@ -3,6 +3,8 @@
 # Hembrain — notes for Claude
 
 Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby/toddler, no account).
+Where it is going: `VISION.md` (the family's long-term, agent-readable memory) — read it before proposing features;
+next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 

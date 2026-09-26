@@ -1,6 +1,6 @@
 # Roadmap
 
-Priorities as of 2026-09-26. Build one batch at a time.
+Priorities as of 2026-09-26. Build one batch at a time. The direction behind them is in [`VISION.md`](VISION.md).
 
 ## 0. Hygiene (before anything else)
 - [ ] Remove `MCP_TOKEN` + `FAMILY_ID` from Vercel (old single-family connector token; personal links replace it)
@@ -15,14 +15,18 @@ Priorities as of 2026-09-26. Build one batch at a time.
 - [x] Paste several lines at once
 
 ## 2. Calendar
-- [x] Recurring events (daily preschool drop-off/pick-up, weekly activities) — edits apply to the whole series
+- [x] Recurring events (daily preschool drop-off/pick-up, weekly activities)
+- [x] Month view; tap a day to open its week; multi-day events on every day they cover
+- [x] Kids tab: plan drop-offs and pick-ups week by week, tap to assign; Today card for the next preschool day
+- [x] Filter by person
 - [x] Week view with a "who drops off / picks up" row per day
 - [ ] Secret iCal feed per person (`/api/calendar/<token>.ics`) → subscribe from iOS/Google Calendar and get
       native reminders (read-only, periodic refresh)
 
 ## 3. Claude & automation
 - [ ] Weekly routine (Sunday): week summary + add items that are running out
-- [ ] Skip / move a single occurrence of a repeating event
+- [x] Skip / move a single occurrence of a repeating event (app and connector `only_date`)
+- [x] Scan a receipt in the app (needs `ANTHROPIC_API_KEY`) and "type it" event entry
 - [x] Show "added by <name>" for items/events created through the connector
 - [ ] Test photo → events (school planning, emails) through the connector
 
@@ -31,19 +35,27 @@ Priorities as of 2026-09-26. Build one batch at a time.
 - [ ] Import a recipe from a URL (schema.org Recipe JSON-LD)
 - [x] "What can we cook tonight?" via Claude (`dinner_ideas`) + "Tonight?" card on Today
 
-## 5. If Hembrain becomes a product (Sweden)
-- [ ] Swedish UI (+ English), i18n
+## 5. Family memory, first slice (see VISION.md)
+- [ ] People, occasions (birthdays, wedding anniversaries), tastes: tables + a "People" page
+- [ ] Paste a list (weddings, friends' children's birthdays) → Claude files it
+- [ ] Occasion reminders a week before and on the day, with a drafted message in the right language
+- [ ] Connector tools `remember`, `recall`, `get_person`
+- [ ] Charlie's measurements and growth curve
+
+## 6. If Hembrain becomes a product (Sweden)
+- [x] Swedish, French and English UI, language per account
 - [ ] GDPR: privacy policy, self-service data export and account deletion
 - [ ] Onboarding for a new family (kids, preschool, usual store)
 - [ ] Per-family limits/abuse protection on open sign-up
 
 ## Later / maybe
 - Child's food diary and BVC milestones, chores, documents vault
-- Push notifications (fragile on iOS; the iCal feed covers most of it)
 - [x] Receipts: photo → Claude → `log_receipt` (purchases with store/price, checks off the list)
 - Kivra: no public API for private users as far as we know — not planned
 
 ## Done
+- [x] Evening reminders and "you've been given something to do" (web push, Vercel Cron)
+- [x] Undo instead of confirmation dialogs; calmer ink-on-paper interface where colour means a person
 - [x] Little gifts between family members ("à toi, à moi"): send an emoji + note, unwrapped on next open; also via Claude (`send_gift`)
 - [x] Shared calendar, lists, recipes, notes, admin, profile (PWA)
 - [x] Supabase schema with per-family RLS, restock prediction view
