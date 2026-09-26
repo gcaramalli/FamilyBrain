@@ -9,6 +9,7 @@ export type Profile = {
   email: string | null;
   role: Role;
   color: string;
+  locale: "en" | "fr" | "sv";
 };
 
 export type Member = {
@@ -20,6 +21,11 @@ export type Member = {
   color: string;
   birthdate: string | null;
   notes: string | null;
+  // Kids: usual drop-off / pick-up ("08:00:00") and where.
+  dropoff_time: string | null;
+  pickup_time: string | null;
+  care_place: string | null;
+  care_days: number[];
 };
 
 export type Invite = { email: string; family_id: string; role: Role; code: string; expires_at: string; member_id: string | null; created_at: string };
@@ -36,6 +42,10 @@ export type CalendarEvent = {
   for_member_id: string | null;
   recurrence: "daily" | "weekdays" | "weekly" | "biweekly" | "monthly" | null;
   recurrence_until: string | null;
+  // Drop-off / pick-up of a child (Kids tab).
+  care?: "dropoff" | "pickup" | null;
+  // Dates of a repeating event removed or changed on their own.
+  skip_dates?: string[];
   created_by?: string | null;
 };
 

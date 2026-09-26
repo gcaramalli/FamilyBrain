@@ -5,7 +5,7 @@ import { useFamily } from "@/components/family-context";
 import { EventForm, newEventDraft } from "@/components/event-form";
 import { EventRow } from "@/components/event-row";
 import { Sheet } from "@/components/sheet";
-import { addDays, dayKey, formatDayHeading, startOfDay } from "@/lib/dates";
+import { addDays, dayKey, fmtDate, formatDayHeading, startOfDay } from "@/lib/dates";
 import { fetchOccurrences, groupByDay, isMultiDay } from "@/lib/events";
 import type { EventOccurrence, Member } from "@/lib/types";
 
@@ -53,11 +53,12 @@ function Initials({ events, max }: { events: EventOccurrence[]; max: number }) {
 }
 
 export default function CalendarPage() {
-  const { supabase } = useFamily();
+  const { supabase, members, me, t } = useFamily();
+  const [who, setWho] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [focus, setFocus] = useState<string | null>(null);
-  const [events, setEvents] = useState<EventOccurrence[]>([]);
+  const [allEvents, setEvents] = useState<EventOccurrence[]>([]);
   const [editing, setEditing] = useState<Parameters<typeof EventForm>[0]["initial"] | null>(null);
 
   const from = mode === "month" ? startOfMonthGrid(anchor) : mode === "week" ? startOfWeek(anchor) : startOfDay(anchor);
@@ -80,6 +81,12 @@ export default function CalendarPage() {
     };
   }, [supabase, load]);
 
+  // Filter: only what one person does or what is about them.
+  const events = useMemo(
+    () => (who ? allEvents.filter((e) => e.responsible_member_id === who || e.for_member_id === who) : allEvents),
+    [allEvents, who],
+  );
+
   const days = useMemo(() => Array.from({ length: span }, (_, i) => addDays(new Date(fromKey + "T00:00:00"), i)), [fromKey, span]);
   const byDay = useMemo(() => groupByDay(events), [events]);
 
@@ -100,16 +107,16 @@ export default function CalendarPage() {
   };
   const periodLabel =
     mode === "month"
-      ? anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+      ? fmtDate(anchor, { month: "long", year: "numeric" })
       : mode === "week"
-        ? `Week of ${days[0].toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
-        : `From ${days[0].toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+        ? t("Week of {date}", { date: fmtDate(days[0], { day: "numeric", month: "short" }) })
+        : t("From {date}", { date: fmtDate(days[0], { day: "numeric", month: "short" }) });
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="h1">Calendar</h1>
-        <button className="btn" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined))}>+ Event</button>
+        <h1 className="h1">{t("Calendar")}</h1>
+        <button className="btn" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>
       </div>
 
       <div className="flex items-center justify-between gap-2 text-sm">
@@ -123,12 +130,12 @@ export default function CalendarPage() {
               }}
               className={`rounded-lg px-3 py-1 capitalize ${mode === m ? "bg-accent text-white" : ""}`}
             >
-              {m}
+              {m === "month" ? t("Month") : m === "week" ? t("Week") : t("Agenda")}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-ghost" onClick={() => shift(-1)} aria-label="Previous">←</button>
+          <button className="btn-ghost" onClick={() => shift(-1)} aria-label={t("Previous")}>←</button>
           <button
             className="text-accent"
             onClick={() => {
@@ -136,18 +143,30 @@ export default function CalendarPage() {
               setAnchor(new Date());
             }}
           >
-            Today
+            {t("Today")}
           </button>
-          <button className="btn-ghost" onClick={() => shift(1)} aria-label="Next">→</button>
+          <button className="btn-ghost" onClick={() => shift(1)} aria-label={t("Next")}>→</button>
         </div>
       </div>
+
+      {members.length > 1 && (
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 text-sm">
+          <button onClick={() => setWho(null)} className={`chip-toggle ${who === null ? "chip-on" : ""}`}>{t("Everyone")}</button>
+          {members.map((m) => (
+            <button key={m.id} onClick={() => setWho(who === m.id ? null : m.id)} className={`chip-toggle ${who === m.id ? "chip-on" : ""}`}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: m.color }} />
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {mode === "month" && (
         <section className="card p-2">
           <h2 className="px-1 pb-2 font-semibold capitalize">{periodLabel}</h2>
           <div className="grid grid-cols-7 text-center text-[11px] uppercase text-muted">
             {days.slice(0, 7).map((d) => (
-              <div key={dayKey(d)} className="pb-1">{d.toLocaleDateString(undefined, { weekday: "narrow" })}</div>
+              <div key={dayKey(d)} className="pb-1">{fmtDate(d, { weekday: "narrow" })}</div>
             ))}
           </div>
           <div className="grid grid-cols-7 border-l border-t border-border">
@@ -159,7 +178,7 @@ export default function CalendarPage() {
                 <button
                   key={k}
                   onClick={() => openWeek(d)}
-                  aria-label={`${d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}, ${list.length} event${list.length === 1 ? "" : "s"}`}
+                  aria-label={`${fmtDate(d, { weekday: "long", day: "numeric", month: "long" })}, ${list.length === 1 ? t("1 event") : t("{n} events", { n: list.length })}`}
                   className={`flex min-h-16 flex-col items-center gap-1 border-b border-r border-border px-0.5 py-1 active:bg-accent-soft ${inMonth ? "" : "opacity-40"}`}
                 >
                   <span
@@ -174,24 +193,24 @@ export default function CalendarPage() {
               );
             })}
           </div>
-          <p className="px-1 pt-2 text-xs text-muted">Tap a day to open its week.</p>
+          <p className="px-1 pt-2 text-xs text-muted">{t("Tap a day to open its week.")}</p>
         </section>
       )}
 
       {mode === "week" && (
         <section className="card p-3">
-          <div className="mb-2 text-sm text-muted">{periodLabel} · drop-offs, pick-ups & trips</div>
+          <div className="mb-2 text-sm text-muted">{periodLabel} · {t("drop-offs, pick-ups & trips")}</div>
           <div className="grid grid-cols-7 gap-1 text-center">
             {days.map((d) => {
               const k = dayKey(d);
-              const shown = (byDay.get(k) ?? []).filter((e) => DUTY.test(e.title) || e.all_day || isMultiDay(e));
+              const shown = (byDay.get(k) ?? []).filter((e) => e.care || DUTY.test(e.title) || e.all_day || isMultiDay(e));
               return (
                 <button
                   key={k}
                   onClick={() => setFocus(k)}
                   className={`rounded-lg py-1.5 ${k === todayKey ? "bg-accent-soft" : ""} ${k === focus ? "ring-1 ring-accent" : ""}`}
                 >
-                  <div className="text-[11px] uppercase text-muted">{d.toLocaleDateString(undefined, { weekday: "narrow" })}</div>
+                  <div className="text-[11px] uppercase text-muted">{fmtDate(d, { weekday: "narrow" })}</div>
                   <div className={`text-sm font-semibold ${k === todayKey ? "text-accent" : ""}`}>{d.getDate()}</div>
                   <div className="mt-1 flex min-h-5 flex-col items-center gap-0.5">
                     <Initials events={shown} max={3} />
@@ -213,10 +232,10 @@ export default function CalendarPage() {
               <section key={k} id={`day-${k}`} className={`card scroll-mt-20 py-3 ${k === focus ? "border-accent" : ""}`}>
                 <div className="flex items-center justify-between">
                   <h2 className="font-semibold capitalize">{formatDayHeading(day)}</h2>
-                  <button className="text-sm text-accent" onClick={() => setEditing(newEventDraft(day))}>+ Add</button>
+                  <button className="min-h-9 px-1 text-sm font-medium text-accent" onClick={() => setEditing(newEventDraft(day, me))}>+ {t("Add")}</button>
                 </div>
                 {list.length === 0 ? (
-                  <p className="py-1 text-sm text-muted">Nothing planned</p>
+                  <p className="py-1 text-sm text-muted">{t("Nothing planned")}</p>
                 ) : (
                   <div className="divide-y divide-border">
                     {list.map((ev) => (
@@ -227,11 +246,11 @@ export default function CalendarPage() {
               </section>
             );
           })}
-          {mode === "week" && events.length === 0 && !focus && <p className="card text-sm text-muted">Nothing planned this week.</p>}
+          {mode === "week" && events.length === 0 && !focus && <p className="card text-sm text-muted">{t("Nothing planned this week.")}</p>}
         </div>
       )}
 
-      <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "Edit event" : "New event"}>
+      <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? t("Edit event") : t("New event")}>
         {editing && (
           <EventForm
             initial={editing}

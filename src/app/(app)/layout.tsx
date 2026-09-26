@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { FamilyProvider } from "@/components/family-context";
 import { AppShell } from "@/components/app-shell";
+import { aiEnabled } from "@/lib/ai";
 import type { Family, Member, Profile } from "@/lib/types";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -30,7 +31,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   ]);
 
   return (
-    <FamilyProvider profile={profile} family={family ?? { id: profile.family_id, name: "Our family" }} members={(members ?? []) as Member[]}>
+    <FamilyProvider profile={profile} family={family ?? { id: profile.family_id, name: "Our family" }} members={(members ?? []) as Member[]} ai={aiEnabled()}>
       <AppShell>{children}</AppShell>
     </FamilyProvider>
   );

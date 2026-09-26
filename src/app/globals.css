@@ -63,6 +63,12 @@ body {
   .h2 {
     @apply text-lg font-semibold;
   }
+  .chip-toggle {
+    @apply inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-sm;
+  }
+  .chip-on {
+    @apply border-foreground bg-foreground text-background;
+  }
   .chip {
     @apply inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent;
   }

@@ -59,7 +59,9 @@ export function expand(events: CalendarEvent[], from: Date, to: Date): EventOccu
     // Look back far enough to catch occurrences that started earlier and are still running.
     const spanDays = Math.max(0, Math.round((new Date(lastDay(base, end, ev.all_day) + "T00:00:00").getTime() - startOfDay(base).getTime()) / DAY));
     const lookFrom = dayKey(addDays(from, -spanDays));
+    const skip = new Set(ev.skip_dates ?? []);
     for (const d of occurrenceDates(dayKey(base), ev.recurrence, ev.recurrence_until, lookFrom, windowEnd)) {
+      if (skip.has(d)) continue;
       const [y, m, day] = d.split("-").map(Number);
       const start = new Date(base);
       start.setFullYear(y, m - 1, day);
