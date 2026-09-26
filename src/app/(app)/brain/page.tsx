@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
+import { useToast } from "@/components/toast";
 import type { Note } from "@/lib/types";
 
 type Draft = Pick<Note, "title" | "body" | "pinned"> & { id?: string; tags: string };
@@ -10,7 +11,8 @@ type Draft = Pick<Note, "title" | "body" | "pinned"> & { id?: string; tags: stri
 // Free-form family facts: kindergarten address and pickup rules, allergies,
 // doctor, sizes, Wi-Fi... Also the context Claude reads before acting.
 export default function BrainPage() {
-  const { supabase } = useFamily();
+  const { supabase, t } = useFamily();
+  const toast = useToast();
   const [notes, setNotes] = useState<Note[]>([]);
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -43,20 +45,25 @@ export default function BrainPage() {
   }
 
   async function remove() {
-    if (!editing?.id || !confirm("Delete this note?")) return;
+    if (!editing?.id) return;
+    const before = notes.find((n) => n.id === editing.id);
     await supabase.from("notes").delete().eq("id", editing.id);
     setEditing(null);
     load();
+    toast(t("Note deleted"), async () => {
+      if (before) await supabase.from("notes").insert(before);
+      load();
+    });
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="h1">Family brain</h1>
-        <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ Note</button>
+        <h1 className="h1">{t("Family brain")}</h1>
+        <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>
       </div>
-      <p className="text-sm text-muted">Everything worth remembering: pickup rules, allergies, sizes, contacts, codes.</p>
-      <input className="input" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="text-sm text-muted">{t("Everything worth remembering: pickup rules, allergies, sizes, contacts, codes.")}</p>
+      <input className="input" placeholder={t("Search…")} value={q} onChange={(e) => setQ(e.target.value)} />
 
       <ul className="grid gap-3">
         {filtered.map((n) => (
@@ -65,26 +72,26 @@ export default function BrainPage() {
               <div className="font-semibold">{n.pinned && "📌 "}{n.title}</div>
               <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{n.body}</p>
               {n.tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">{n.tags.map((t) => <span key={t} className="chip">{t}</span>)}</div>
+                <div className="mt-2 flex flex-wrap gap-1">{n.tags.map((x) => <span key={x} className="chip">{x}</span>)}</div>
               )}
             </button>
           </li>
         ))}
-        {notes.length === 0 && <li className="card text-sm text-muted">Start with “Preschool”: address, opening hours, who is allowed to pick up the kids.</li>}
+        {notes.length === 0 && <li className="card text-sm text-muted">{t("Start with “Preschool”: address, opening hours, who is allowed to pick up the kids.")}</li>}
       </ul>
 
-      <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "Edit note" : "New note"}>
+      <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? t("Edit note") : t("New note")}>
         {editing && (
           <form onSubmit={save} className="flex flex-col gap-3">
-            <input className="input" placeholder="Title" required value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
-            <textarea className="input min-h-40" placeholder="Details" value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} />
-            <input className="input" placeholder="Tags (charlie, health, school)" value={editing.tags} onChange={(e) => setEditing({ ...editing, tags: e.target.value })} />
+            <input className="input" placeholder={t("Title")} required value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+            <textarea className="input min-h-40" placeholder={t("Details")} value={editing.body} onChange={(e) => setEditing({ ...editing, body: e.target.value })} />
+            <input className="input" placeholder={t("Tags (charlie, health, school)")} value={editing.tags} onChange={(e) => setEditing({ ...editing, tags: e.target.value })} />
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={editing.pinned} onChange={(e) => setEditing({ ...editing, pinned: e.target.checked })} /> Pin to top
+              <input type="checkbox" checked={editing.pinned} onChange={(e) => setEditing({ ...editing, pinned: e.target.checked })} /> {t("Pin to top")}
             </label>
             <div className="flex gap-2">
-              <button className="btn flex-1">Save</button>
-              {editing.id && <button type="button" className="btn-ghost text-danger" onClick={remove}>Delete</button>}
+              <button className="btn flex-1">{t("Save")}</button>
+              {editing.id && <button type="button" className="btn-ghost text-danger" onClick={remove}>{t("Delete")}</button>}
             </div>
           </form>
         )}

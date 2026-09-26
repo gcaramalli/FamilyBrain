@@ -2,35 +2,37 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmButton } from "@/components/confirm-button";
 import { useFamily } from "@/components/family-context";
+import { Sheet } from "@/components/sheet";
+import { useToast } from "@/components/toast";
+import { fmtDate } from "@/lib/dates";
 import type { Invite, List, Member, Profile } from "@/lib/types";
 
-type Purchase = { id: string; item_name: string; purchased_at: string; source: string; store: string | null; price: number | null };
-
 export default function AdminPage() {
-  const { supabase, profile, family, members } = useFamily();
+  const { supabase, profile, family, members, t } = useFamily();
   const router = useRouter();
+  const toast = useToast();
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [renaming, setRenaming] = useState<List | null>(null);
   const [familyName, setFamilyName] = useState(family.name);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [lists, setLists] = useState<List[]>([]);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [inviteMember, setInviteMember] = useState<string>("");
-  const [bought, setBought] = useState("");
 
   const load = useCallback(async () => {
-    const [p, i, l, pu] = await Promise.all([
+    const [p, i, l] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("invites").select("*").order("created_at"),
       supabase.from("lists").select("*").order("position"),
-      supabase.from("purchases").select("id, item_name, purchased_at, source, store, price").order("purchased_at", { ascending: false }).limit(30),
     ]);
     setProfiles((p.data ?? []) as Profile[]);
     setInvites((i.data ?? []) as Invite[]);
     setLists((l.data ?? []) as List[]);
-    setPurchases((pu.data ?? []) as Purchase[]);
   }, [supabase]);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function AdminPage() {
   }, [load]);
 
   if (profile.role !== "admin") {
-    return <p className="text-muted">Only family admins can see this page.</p>;
+    return <p className="text-muted">{t("Only family admins can see this page.")}</p>;
   }
 
   const refresh = () => {
@@ -59,7 +61,7 @@ export default function AdminPage() {
       .insert({ email: inviteEmail.trim().toLowerCase(), family_id: family.id, role: inviteRole, member_id: inviteMember || null })
       .select()
       .single<Invite>();
-    if (error) return alert(error.message);
+    if (error) return toast(error.message);
     setInviteEmail("");
     setInviteMember("");
     await load();
@@ -75,7 +77,7 @@ export default function AdminPage() {
     const url = inviteLink(i);
     try {
       if (navigator.share) {
-        await navigator.share({ title: `Join ${family.name} on Hembrain`, url });
+        await navigator.share({ title: t("Join {family} on Hembrain", { family: family.name }), url });
         return;
       }
     } catch {
@@ -83,50 +85,43 @@ export default function AdminPage() {
     }
     try {
       await navigator.clipboard.writeText(url);
-      alert("Invite link copied. Send it by SMS or WhatsApp.");
+      toast(t("Invite link copied. Send it by SMS or WhatsApp."));
     } catch {
-      prompt("Copy this invite link:", url);
+      setShareUrl(url); // shown as selectable text
     }
   }
 
-  async function addMember() {
-    const name = prompt("Name?");
-    if (!name) return;
-    await supabase.from("members").insert({ name, emoji: "👶", color: "#d97706" });
+  async function addMember(name: string, emoji: string) {
+    // Pick a colour nobody uses yet.
+    const color = FREE_COLORS.find((c) => !members.some((m) => m.color.toLowerCase() === c)) ?? "#d97706";
+    await supabase.from("members").insert({ name, emoji: emoji || "👶", color });
+    setAdding(false);
     refresh();
-  }
-
-  async function logPurchase(e: React.FormEvent) {
-    e.preventDefault();
-    if (!bought.trim()) return;
-    await supabase.from("purchases").insert({ item_name: bought.trim(), source: "manual" });
-    setBought("");
-    load();
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">Admin</h1>
+      <h1 className="h1">{t("Admin")}</h1>
 
       <form onSubmit={saveFamily} className="card flex flex-col gap-2">
-        <h2 className="h2">Family</h2>
+        <h2 className="h2">{t("Family")}</h2>
         <div className="flex gap-2">
           <input className="input" value={familyName} onChange={(e) => setFamilyName(e.target.value)} />
-          <button className="btn">Save</button>
+          <button className="btn">{t("Save")}</button>
         </div>
       </form>
 
       <section className="card flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="h2">Family members</h2>
-          <button className="btn-ghost" onClick={addMember}>+ Person</button>
+          <h2 className="h2">{t("Family members")}</h2>
+          <button className="btn-ghost" onClick={() => setAdding(true)}>+ {t("Person")}</button>
         </div>
-        <p className="text-xs text-muted">People who appear on the calendar. Kids don&apos;t need an account.</p>
+        <p className="text-xs text-muted">{t("People who appear on the calendar. Kids don't need an account.")}</p>
         {members.map((m) => <MemberEditor key={m.id} member={m} onChange={refresh} />)}
       </section>
 
       <section className="card flex flex-col gap-3">
-        <h2 className="h2">Accounts & invites</h2>
+        <h2 className="h2">{t("Accounts & invites")}</h2>
         <ul className="divide-y divide-border">
           {profiles.map((p) => (
             <li key={p.id} className="flex items-center justify-between py-2 text-sm">
@@ -140,83 +135,116 @@ export default function AdminPage() {
                   load();
                 }}
               >
-                <option value="admin">admin</option>
-                <option value="member">member</option>
+                <option value="admin">{t("admin")}</option>
+                <option value="member">{t("member")}</option>
               </select>
             </li>
           ))}
           {invites.map((i) => (
             <li key={i.email} className="flex items-center justify-between py-2 text-sm">
               <span>
-                ✉️ {i.email} <span className="text-muted">({i.role}, until {new Date(i.expires_at).toLocaleDateString()})</span>
+                ✉️ {i.email} <span className="text-muted">({t(i.role)}, {t("until {date}", { date: fmtDate(i.expires_at, { day: "numeric", month: "short" }) })})</span>
               </span>
               <span className="flex gap-3">
-                <button className="text-accent" onClick={() => shareInvite(i)}>Share link</button>
-                <button className="text-danger" onClick={async () => { await supabase.from("invites").delete().eq("code", i.code); load(); }}>Cancel</button>
+                <button className="text-accent" onClick={() => shareInvite(i)}>{t("Share link")}</button>
+                <ConfirmButton armed={t("Cancel invite?")} onConfirm={async () => { await supabase.from("invites").delete().eq("code", i.code); load(); }}>{t("Cancel")}</ConfirmButton>
               </span>
             </li>
           ))}
         </ul>
+        {shareUrl && (
+          <div className="rounded-xl bg-accent-soft p-3 text-sm">
+            <p className="font-medium">{t("Copy this invite link:")}</p>
+            <input className="input mt-1 font-mono text-xs" readOnly value={shareUrl} onFocus={(e) => e.target.select()} />
+          </div>
+        )}
         <form onSubmit={invite} className="flex flex-col gap-2">
-          <input className="input" type="email" required placeholder="Their email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+          <input className="input" type="email" required placeholder={t("Their email")} value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
           <div className="flex gap-2">
             <select className="input" value={inviteMember} onChange={(e) => setInviteMember(e.target.value)}>
-              <option value="">New person</option>
+              <option value="">{t("New person")}</option>
               {members.filter((m) => !m.profile_id).map((m) => (
-                <option key={m.id} value={m.id}>For {m.emoji} {m.name}</option>
+                <option key={m.id} value={m.id}>{t("For {name}", { name: `${m.emoji} ${m.name}` })}</option>
               ))}
             </select>
             <select className="input w-32" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "member" | "admin")}>
-              <option value="member">member</option>
-              <option value="admin">admin</option>
+              <option value="member">{t("member")}</option>
+              <option value="admin">{t("admin")}</option>
             </select>
           </div>
-          <button className="btn">Invite</button>
+          <button className="btn">{t("Invite")}</button>
         </form>
         <p className="text-xs text-muted">
-          Two ways for them to join: send the private link (SMS/WhatsApp; single use, 14 days), or create their account
-          yourself in Supabase → Authentication → Users → Add user with this same email. Either way they land in this family.
+          {t("Two ways for them to join: send the private link (SMS/WhatsApp; single use, 14 days), or create their account yourself in Supabase → Authentication → Users → Add user with this same email. Either way they land in this family.")}
         </p>
       </section>
 
       <section className="card flex flex-col gap-2">
-        <h2 className="h2">Lists</h2>
+        <h2 className="h2">{t("Lists")}</h2>
         {lists.map((l) => (
           <div key={l.id} className="flex items-center justify-between text-sm">
             <span>{l.kind === "grocery" ? "🛒" : "✅"} {l.name}</span>
             <div className="flex gap-3">
-              <button className="text-accent" onClick={async () => { const n = prompt("New name", l.name); if (n) { await supabase.from("lists").update({ name: n }).eq("id", l.id); load(); } }}>Rename</button>
-              <button className="text-danger" onClick={async () => { if (confirm(`Delete "${l.name}" and all its items?`)) { await supabase.from("lists").delete().eq("id", l.id); load(); } }}>Delete</button>
+              <button className="text-accent" onClick={() => setRenaming(l)}>{t("Rename")}</button>
+              <ConfirmButton armed={t("Delete with all items?")} onConfirm={async () => { await supabase.from("lists").delete().eq("id", l.id); load(); }}>{t("Delete")}</ConfirmButton>
             </div>
           </div>
         ))}
       </section>
 
-      <section className="card flex flex-col gap-3">
-        <h2 className="h2">Purchase history</h2>
-        <p className="text-xs text-muted">Checked-off shopping items land here automatically. Log things bought outside the list so the app learns how often you need them.</p>
-        <form onSubmit={logPurchase} className="flex gap-2">
-          <input className="input" placeholder="I just bought… (toothpaste)" value={bought} onChange={(e) => setBought(e.target.value)} />
-          <button className="btn">Log</button>
-        </form>
-        <ul className="divide-y divide-border text-sm">
-          {purchases.map((p) => (
-            <li key={p.id} className="flex justify-between py-1.5">
-              <span>{p.item_name}</span>
-              <span className="text-muted">
-                {new Date(p.purchased_at).toLocaleDateString()} · {p.store ?? p.source}
-                {p.price != null && ` · ${p.price} kr`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <p className="text-xs text-muted">{t("Purchase history moved to Lists → 🧾 Purchases, for everyone.")}</p>
+
+      <Sheet open={adding} onClose={() => setAdding(false)} title={t("Add a person")}>
+        {adding && <AddPerson onAdd={addMember} />}
+      </Sheet>
+
+      <Sheet open={!!renaming} onClose={() => setRenaming(null)} title={t("Rename list")}>
+        {renaming && (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const name = new FormData(e.currentTarget).get("name")?.toString().trim();
+              if (name) await supabase.from("lists").update({ name }).eq("id", renaming.id);
+              setRenaming(null);
+              load();
+            }}
+          >
+            <input className="input" name="name" defaultValue={renaming.name} required autoFocus />
+            <button className="btn">{t("Save")}</button>
+          </form>
+        )}
+      </Sheet>
     </div>
   );
 }
 
+const FREE_COLORS = ["#d97706", "#059669", "#0891b2", "#7c3aed", "#dc2626", "#475569", "#db2777", "#4f46e5"];
+
+function AddPerson({ onAdd }: { onAdd: (name: string, emoji: string) => void }) {
+  const { t } = useFamily();
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("👶");
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) onAdd(name.trim(), emoji.trim());
+      }}
+    >
+      <div className="flex gap-2">
+        <input className="input w-16 text-center text-xl" value={emoji} onChange={(e) => setEmoji(e.target.value)} aria-label={t("Emoji")} />
+        <input className="input" placeholder={t("Name")} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+      </div>
+      <p className="text-xs text-muted">{t("Kids don't need an account. To give an adult one, invite them below after adding.")}</p>
+      <button className="btn">{t("Add")}</button>
+    </form>
+  );
+}
+
 function MemberEditor({ member, onChange }: { member: Member; onChange: () => void }) {
-  const { supabase } = useFamily();
+  const { supabase, t } = useFamily();
   const [m, setM] = useState(member);
   const [dirty, setDirty] = useState(false);
   const set = <K extends keyof Member>(k: K, v: Member[K]) => {
@@ -231,7 +259,6 @@ function MemberEditor({ member, onChange }: { member: Member; onChange: () => vo
   }
 
   async function remove() {
-    if (!confirm(`Remove ${m.name}?`)) return;
     await supabase.from("members").delete().eq("id", m.id);
     onChange();
   }
@@ -245,12 +272,14 @@ function MemberEditor({ member, onChange }: { member: Member; onChange: () => vo
       </div>
       <div className="mt-2 grid grid-cols-2 gap-2">
         <input className="input" type="date" value={m.birthdate ?? ""} onChange={(e) => set("birthdate", e.target.value || null)} />
-        <span className="self-center text-xs text-muted">{m.profile_id ? "Has an account" : "No account"}</span>
+        <span className="self-center text-xs text-muted">{m.profile_id ? t("Has an account") : t("No account")}</span>
       </div>
-      <textarea className="input mt-2" placeholder="Notes (allergies, sizes, school…)" value={m.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
+      <textarea className="input mt-2" placeholder={t("Notes (allergies, sizes, school…)")} value={m.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
       <div className="mt-2 flex gap-2">
-        <button className="btn flex-1" onClick={save} disabled={!dirty}>Save</button>
-        {!m.profile_id && <button className="btn-ghost text-danger" onClick={remove}>Remove</button>}
+        <button className="btn flex-1" onClick={save} disabled={!dirty}>{t("Save")}</button>
+        {!m.profile_id && (
+          <ConfirmButton className="btn-ghost" armed={t("Remove {name}?", { name: m.name })} onConfirm={remove}>{t("Remove")}</ConfirmButton>
+        )}
       </div>
     </div>
   );

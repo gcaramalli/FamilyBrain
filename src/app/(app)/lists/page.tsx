@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { MemberBadge, MemberSelect } from "@/components/member-select";
+import { Purchases } from "@/components/purchases";
+import { ReceiptScan } from "@/components/receipt-scan";
 import { Sheet } from "@/components/sheet";
+import { useToast } from "@/components/toast";
 import { CATEGORIES, categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { daysUntil } from "@/lib/dates";
 import type { List, ListItem, RestockSuggestion } from "@/lib/types";
@@ -18,7 +21,9 @@ function parseLine(line: string) {
 }
 
 export default function ListsPage() {
-  const { supabase } = useFamily();
+  const { supabase, t } = useFamily();
+  const toast = useToast();
+  const [creating, setCreating] = useState(false);
   const [lists, setLists] = useState<List[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [items, setItems] = useState<ListItem[]>([]);
@@ -141,22 +146,29 @@ export default function ListsPage() {
       .eq("id", item.id);
   }
 
-  async function remove(item: ListItem) {
-    setItems((xs) => xs.filter((x) => x.id !== item.id));
-    await supabase.from("list_items").delete().eq("id", item.id);
-  }
-
-  async function clearDone() {
-    if (!activeId || !confirm("Remove all checked items?")) return;
-    await supabase.from("list_items").delete().eq("list_id", activeId).eq("done", true);
+  // Deleting never asks first: it offers "Undo" instead.
+  async function restore(rows: ListItem[]) {
+    await supabase.from("list_items").insert(rows);
     loadItems();
   }
 
-  async function newList() {
-    const name = prompt("List name?");
-    if (!name) return;
-    const kind = confirm("Is it a shopping list? (OK = shopping, Cancel = to-do)") ? "grocery" : "todo";
+  async function remove(item: ListItem) {
+    setItems((xs) => xs.filter((x) => x.id !== item.id));
+    await supabase.from("list_items").delete().eq("id", item.id);
+    toast(t("Removed {item}", { item: item.title }), () => restore([item]));
+  }
+
+  async function clearDone() {
+    if (!activeId || !done.length) return;
+    const removed = done;
+    setItems((xs) => xs.filter((x) => !x.done));
+    await supabase.from("list_items").delete().eq("list_id", activeId).eq("done", true);
+    toast(t("Cleared {n} checked items", { n: removed.length }), () => restore(removed));
+  }
+
+  async function newList(name: string, kind: List["kind"]) {
     const { data } = await supabase.from("lists").insert({ name, kind, position: lists.length }).select().single<List>();
+    setCreating(false);
     if (data) {
       setLists((ls) => [...ls, data]);
       setActiveId(data.id);
@@ -178,20 +190,20 @@ export default function ListsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">Lists</h1>
+      <h1 className="h1">{t("Lists")}</h1>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {lists.map((l) => (
           <button
             key={l.id}
             onClick={() => setActiveId(l.id)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${l.id === activeId ? "border-accent bg-accent text-white" : "border-border"}`}
+            className={`chip-toggle ${l.id === activeId ? "chip-on" : ""}`}
           >
             {l.kind === "grocery" ? "🛒" : "✅"} {l.name}
           </button>
         ))}
-        <button onClick={newList} className="shrink-0 rounded-full border border-dashed border-border px-3 py-1.5 text-sm text-muted">
-          + New list
+        <button onClick={() => setCreating(true)} className="chip-toggle border-dashed text-muted">
+          + {t("New list")}
         </button>
       </div>
 
@@ -208,7 +220,7 @@ export default function ListsPage() {
             >
               <input
                 className="input"
-                placeholder={isGrocery ? "Add item, e.g. 2 milk (paste a whole list too)" : "Add a to-do"}
+                placeholder={isGrocery ? t("Add item, e.g. 2 milk (paste a whole list too)") : t("Add a to-do")}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 onPaste={(e) => {
@@ -220,7 +232,7 @@ export default function ListsPage() {
                   }
                 }}
               />
-              <button className="btn">Add</button>
+              <button className="btn">{t("Add")}</button>
             </form>
             {autocomplete.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -241,17 +253,24 @@ export default function ListsPage() {
             )}
           </div>
 
+          {isGrocery && (
+            <div className="flex flex-wrap gap-2">
+              <ReceiptScan onLogged={() => { loadItems(); loadRestock(); loadHistory(); }} />
+              <Purchases />
+            </div>
+          )}
+
           {isGrocery && suggestions.length > 0 && (
             <section className="card border-dashed">
-              <h2 className="font-semibold">🔮 Probably needed soon</h2>
-              <p className="mb-2 text-xs text-muted">Based on how often you buy these. Tap to add.</p>
+              <h2 className="font-semibold">🔮 {t("Probably needed soon")}</h2>
+              <p className="mb-2 text-xs text-muted">{t("Based on how often you buy these. Tap to add.")}</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => {
                   const d = daysUntil(s.next_due_on);
                   return (
                     <button key={s.item_key} className="btn-ghost" onClick={() => addLines([s.item_name])}>
                       + {s.item_name}
-                      <span className="text-xs text-muted">{d < 0 ? `${-d}d overdue` : d === 0 ? "today" : `in ${d}d`}</span>
+                      <span className="text-xs text-muted">{d < 0 ? t("{n}d overdue", { n: -d }) : d === 0 ? t("today") : t("in {n}d", { n: d })}</span>
                     </button>
                   );
                 })}
@@ -260,13 +279,13 @@ export default function ListsPage() {
           )}
 
           {open.length === 0 ? (
-            <p className="card text-sm text-muted">All done 🎉</p>
+            <p className="card text-sm text-muted">{t("All done")} 🎉</p>
           ) : (
             groups.map((g) => (
               <section key={g.id} className="card py-1">
                 {g.label && (
                   <h3 className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    {g.emoji} {g.label}
+                    {g.emoji} {t(g.label)}
                   </h3>
                 )}
                 <ul className="divide-y divide-border">
@@ -282,9 +301,9 @@ export default function ListsPage() {
             <div>
               <div className="flex items-center justify-between">
                 <button className="text-sm text-muted" onClick={() => setShowDone(!showDone)}>
-                  {showDone ? "▾" : "▸"} Checked ({done.length})
+                  {showDone ? "▾" : "▸"} {t("Checked ({n})", { n: done.length })}
                 </button>
-                <button className="text-sm text-muted" onClick={clearDone}>Clear</button>
+                <button className="min-h-9 px-1 text-sm text-muted" onClick={clearDone}>{t("Clear")}</button>
               </div>
               {showDone && (
                 <ul className="card mt-2 divide-y divide-border py-1 opacity-70">
@@ -298,7 +317,11 @@ export default function ListsPage() {
         </>
       )}
 
-      <Sheet open={!!editing} onClose={() => setEditing(null)} title="Edit item">
+      <Sheet open={creating} onClose={() => setCreating(false)} title={t("New list")}>
+        {creating && <NewListForm onCreate={newList} />}
+      </Sheet>
+
+      <Sheet open={!!editing} onClose={() => setEditing(null)} title={t("Edit item")}>
         {editing && (
           <ItemForm
             item={editing}
@@ -319,17 +342,54 @@ export default function ListsPage() {
   );
 }
 
+function NewListForm({ onCreate }: { onCreate: (name: string, kind: List["kind"]) => void }) {
+  const { t } = useFamily();
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<List["kind"]>("grocery");
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) onCreate(name.trim(), kind);
+      }}
+      className="flex flex-col gap-3"
+    >
+      <input className="input" placeholder={t("Name, e.g. IKEA or Weekend chores")} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+      <div className="grid grid-cols-2 gap-2">
+        {([
+          ["grocery", "🛒", t("Shopping"), t("Sorted by aisle, learns what you buy")],
+          ["todo", "✅", t("To-do"), t("With who does it and by when")],
+        ] as const).map(([k, icon, label, hint]) => (
+          <button
+            type="button"
+            key={k}
+            onClick={() => setKind(k)}
+            className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left ${kind === k ? "border-foreground bg-accent-soft" : "border-border"}`}
+          >
+            <span className="text-2xl">{icon}</span>
+            <span className="font-medium">{label}</span>
+            <span className="text-xs text-muted">{hint}</span>
+          </button>
+        ))}
+      </div>
+      <button className="btn">{t("Create list")}</button>
+    </form>
+  );
+}
+
 function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: (i: ListItem) => void; onEdit: (i: ListItem) => void }) {
-  const { addedBy } = useFamily();
+  const { addedBy, t } = useFamily();
   const by = addedBy(item.created_by);
   return (
     <li className="flex items-center gap-3 py-2.5">
       <button
         onClick={() => onToggle(item)}
-        aria-label={item.done ? "Uncheck" : "Check"}
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${item.done ? "border-accent bg-accent text-white" : "border-border"}`}
+        aria-label={item.done ? t("Uncheck") : t("Check")}
+        className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center"
       >
-        {item.done && "✓"}
+        <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${item.done ? "border-foreground bg-foreground text-background" : "border-muted"}`}>
+          {item.done && "✓"}
+        </span>
       </button>
       <button className={`min-w-0 flex-1 text-left ${item.done ? "line-through" : ""}`} onClick={() => onEdit(item)}>
         <span>{item.title}</span>
@@ -339,7 +399,7 @@ function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: (i: Lis
           <span className="block truncate text-xs text-muted">
             {item.notes}
             {item.notes && by ? " · " : ""}
-            {by && `added by ${by}`}
+            {by && t("added by {name}", { name: by })}
           </span>
         )}
       </button>
@@ -349,7 +409,7 @@ function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: (i: Lis
 }
 
 function ItemForm({ item, grocery, onDone, onDelete }: { item: ListItem; grocery: boolean; onDone: () => void; onDelete: () => void }) {
-  const { supabase } = useFamily();
+  const { supabase, t } = useFamily();
   const [d, setD] = useState(item);
   const set = <K extends keyof ListItem>(k: K, v: ListItem[K]) => setD((x) => ({ ...x, [k]: v }));
 
@@ -380,26 +440,26 @@ function ItemForm({ item, grocery, onDone, onDelete }: { item: ListItem; grocery
     <form onSubmit={save} className="flex flex-col gap-3">
       <input className="input" required value={d.title} onChange={(e) => set("title", e.target.value)} />
       <div>
-        <span className="label">Quantity</span>
+        <span className="label">{t("Quantity")}</span>
         <div className="flex gap-2">
           <button type="button" className="btn-ghost w-12 text-lg" onClick={() => bump(-1)}>−</button>
-          <input className="input text-center" placeholder="e.g. 2 or 1 kg" value={d.quantity ?? ""} onChange={(e) => set("quantity", e.target.value || null)} />
+          <input className="input text-center" placeholder={t("e.g. 2 or 1 kg")} value={d.quantity ?? ""} onChange={(e) => set("quantity", e.target.value || null)} />
           <button type="button" className="btn-ghost w-12 text-lg" onClick={() => bump(1)}>+</button>
         </div>
       </div>
-      <input className="input" placeholder="Note (e.g. for breakfast, organic)" value={d.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
+      <input className="input" placeholder={t("Note (e.g. for breakfast, organic)")} value={d.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
       {grocery ? (
         <div>
-          <span className="label">Aisle</span>
+          <span className="label">{t("Aisle")}</span>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
               <button
                 type="button"
                 key={c.id}
                 onClick={() => set("category", c.id)}
-                className={`rounded-full border px-3 py-1 text-sm ${categoryById(d.category).id === c.id ? "border-accent bg-accent text-white" : "border-border"}`}
+                className={`chip-toggle ${categoryById(d.category).id === c.id ? "chip-on" : ""}`}
               >
-                {c.emoji} {c.label}
+                {c.emoji} {t(c.label)}
               </button>
             ))}
           </div>
@@ -407,18 +467,18 @@ function ItemForm({ item, grocery, onDone, onDelete }: { item: ListItem; grocery
       ) : (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <span className="label">Who</span>
+            <span className="label">{t("Who")}</span>
             <MemberSelect value={d.assignee_member_id} onChange={(v) => set("assignee_member_id", v)} />
           </div>
           <div>
-            <span className="label">Due</span>
+            <span className="label">{t("Due")}</span>
             <input className="input" type="date" value={d.due_date ?? ""} onChange={(e) => set("due_date", e.target.value || null)} />
           </div>
         </div>
       )}
       <div className="flex gap-2">
-        <button className="btn flex-1">Save</button>
-        <button type="button" className="btn-ghost text-danger" onClick={onDelete}>Delete</button>
+        <button className="btn flex-1">{t("Save")}</button>
+        <button type="button" className="btn-ghost text-danger" onClick={onDelete}>{t("Delete")}</button>
       </div>
     </form>
   );

@@ -21,6 +21,8 @@ Routing:
 - Calendar (appointments, who drops off / picks up the kids, trips, birthdays): get_events / add_event / update_event / delete_event.
   Pass times as local time (YYYY-MM-DDTHH:MM). Set "responsible" (who does it) and "for_whom" (who it is about) by first name.
   Check get_events for that day first to avoid duplicates. Only delete when explicitly asked.
+  Drop-offs and pick-ups of a child: set kind "dropoff"/"pickup" (they show in the app's Kids tab); the child's usual
+  times are in get_family_context. To change one day of a repeating event ("this Friday Jenny picks up"), pass only_date.
 - Shopping and to-dos: add_to_list / check_off / get_list. Default list is the first shopping list.
 - "We bought X" outside the list: log_purchase (feeds the "running out soon" prediction).
 - Recipes: search_recipes / add_recipe. "What should we cook tonight?": dinner_ideas, then suggest 2-3 options
@@ -96,6 +98,7 @@ const eventFields = {
   for_whom: z.string().optional().describe("First name of who it is about, e.g. 'Charlie'"),
   repeats: z.enum(recurrenceIds).optional().describe("Repeat the event: daily, weekdays (Mon-Fri), weekly, biweekly, monthly"),
   repeat_until: z.string().optional().describe("Last date of the series, YYYY-MM-DD"),
+  kind: z.enum(["dropoff", "pickup"]).optional().describe("Set when taking a child to (dropoff) or fetching a child from (pickup) preschool/school"),
 };
 
 async function eventRow(e: {
@@ -109,6 +112,7 @@ async function eventRow(e: {
   for_whom?: string;
   repeats?: Recurrence;
   repeat_until?: string;
+  kind?: "dropoff" | "pickup";
 }) {
   const row: Record<string, unknown> = {};
   if (e.title !== undefined) row.title = e.title;
@@ -124,7 +128,52 @@ async function eventRow(e: {
   if (e.for_whom !== undefined) row.for_member_id = await memberIdByName(e.for_whom);
   if (e.repeats !== undefined) row.recurrence = e.repeats;
   if (e.repeat_until !== undefined) row.recurrence_until = e.repeat_until || null;
+  if (e.kind !== undefined) row.care = e.kind;
   return row;
+}
+
+type EventRecord = {
+  id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  all_day: boolean;
+  location: string | null;
+  notes: string | null;
+  responsible_member_id: string | null;
+  for_member_id: string | null;
+  recurrence: string | null;
+  care: string | null;
+  skip_dates: string[] | null;
+};
+
+async function seriesEvent(id: string) {
+  const { data, error } = await createAdminClient().from("events").select("*").eq("id", id).eq("family_id", familyId()).maybeSingle<EventRecord>();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("No event with that id.");
+  return data;
+}
+
+const duration = (ev: EventRecord) => (ev.ends_at ? new Date(ev.ends_at).getTime() - new Date(ev.starts_at).getTime() : null);
+
+// A one-off copy of a series' occurrence on `date` (same local time of day).
+function occurrenceCopy(ev: EventRecord, date: string): Record<string, unknown> {
+  const time = utcToStockholm(ev.starts_at).split(" ")[1];
+  const start = stockholmToUtc(`${date}T${time}`);
+  const len = duration(ev);
+  return {
+    family_id: familyId(),
+    title: ev.title,
+    starts_at: start,
+    ends_at: len !== null ? new Date(new Date(start).getTime() + len).toISOString() : null,
+    all_day: ev.all_day,
+    location: ev.location,
+    notes: ev.notes,
+    responsible_member_id: ev.responsible_member_id,
+    for_member_id: ev.for_member_id,
+    care: ev.care,
+    created_by: createdBy(),
+  };
 }
 
 const itemSchema = z.object({
@@ -144,7 +193,7 @@ export function registerTools(server: McpServer) {
       const db = createAdminClient();
       const fid = familyId();
       const [members, lists, notes] = await Promise.all([
-        db.from("members").select("name, birthdate, notes").eq("family_id", fid).order("created_at"),
+        db.from("members").select("name, birthdate, notes, dropoff_time, pickup_time, care_place").eq("family_id", fid).order("created_at"),
         db.from("lists").select("name, kind").eq("family_id", fid).order("position"),
         db.from("notes").select("title, body").eq("family_id", fid).eq("pinned", true),
       ]);
@@ -171,10 +220,12 @@ export function registerTools(server: McpServer) {
       const [{ data: events, error }, { data: members }] = await Promise.all([
         db
           .from("events")
-          .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id, recurrence, recurrence_until")
+          .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id, recurrence, recurrence_until, skip_dates, care")
           .eq("family_id", familyId())
           .lt("starts_at", end)
-          .or(`and(recurrence.is.null,starts_at.gte.${start}),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromYmd}))`)
+          .or(
+            `and(recurrence.is.null,or(starts_at.gte.${start},ends_at.gte.${start})),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromYmd}))`,
+          )
           .order("starts_at"),
         db.from("members").select("id, name").eq("family_id", familyId()),
       ]);
@@ -185,7 +236,10 @@ export function registerTools(server: McpServer) {
         const local = utcToStockholm(e.starts_at); // "YYYY-MM-DD HH:MM"
         const [baseDate, time] = local.split(" ");
         const duration = e.ends_at ? new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime() : null;
-        for (const d of occurrenceDates(baseDate, e.recurrence as Recurrence | null, e.recurrence_until, fromYmd, toYmd)) {
+        // A one-off multi-day event that started before the window and is still running.
+        const ongoing = !e.recurrence && baseDate < fromYmd ? [baseDate] : [];
+        for (const d of [...ongoing, ...occurrenceDates(baseDate, e.recurrence as Recurrence | null, e.recurrence_until, fromYmd, toYmd)]) {
+          if ((e.skip_dates ?? []).includes(d)) continue;
           const occ = stockholmToUtc(`${d}T${time}`);
           out.push({
             id: e.id,
@@ -195,6 +249,7 @@ export function registerTools(server: McpServer) {
             all_day: e.all_day,
             repeats: e.recurrence,
             repeat_until: e.recurrence_until,
+            kind: e.care,
             location: e.location,
             notes: e.notes,
             responsible: name(e.responsible_member_id),
@@ -231,13 +286,34 @@ export function registerTools(server: McpServer) {
     "update_event",
     {
       title: "Update a calendar event",
-      description: "Change an existing event (time, person responsible, place, repetition...). Get the id from get_events. Only pass fields to change. For a repeating event this changes the whole series.",
-      inputSchema: z.object({ id: z.string().uuid(), ...eventFields }),
+      description:
+        "Change an existing event (time, person responsible, place, repetition...). Get the id from get_events. Only pass fields to change. For a repeating event this changes the whole series, unless only_date is given.",
+      inputSchema: z.object({
+        id: z.string().uuid(),
+        only_date: z.string().optional().describe("For a repeating event: change only the occurrence on this date (YYYY-MM-DD), e.g. 'this Thursday Jenny picks up instead'"),
+        ...eventFields,
+      }),
     },
-    async ({ id, ...e }) => {
+    async ({ id, only_date, ...e }) => {
       const row = await eventRow(e);
       if (!Object.keys(row).length) return text("Nothing to change.");
-      const { data, error } = await createAdminClient()
+      const db = createAdminClient();
+      if (only_date) {
+        const ev = await seriesEvent(id);
+        if (ev.recurrence) {
+          const copy: Record<string, unknown> = { ...occurrenceCopy(ev, only_date), ...row, recurrence: null, recurrence_until: null };
+          // A new start without a new end keeps the event's length.
+          if (row.starts_at && e.end === undefined && ev.ends_at) {
+            copy.ends_at = new Date(new Date(row.starts_at as string).getTime() + duration(ev)!).toISOString();
+          }
+          const { error: skipError } = await db.from("events").update({ skip_dates: [...(ev.skip_dates ?? []), only_date] }).eq("id", id).eq("family_id", familyId());
+          if (skipError) throw new Error(skipError.message);
+          const { data, error } = await db.from("events").insert(copy).select("id").single();
+          if (error) throw new Error(error.message);
+          return text({ updated: ev.title, only_date, changes: Object.keys(e), new_event_id: data.id });
+        }
+      }
+      const { data, error } = await db
         .from("events")
         .update(row)
         .eq("id", id)
@@ -254,11 +330,24 @@ export function registerTools(server: McpServer) {
     "delete_event",
     {
       title: "Delete a calendar event",
-      description: "Remove an event (for a repeating event: the whole series). Only when the user explicitly asks to delete or cancel it.",
-      inputSchema: z.object({ id: z.string().uuid() }),
+      description:
+        "Remove an event (for a repeating event: the whole series, unless only_date is given). Only when the user explicitly asks to delete or cancel it.",
+      inputSchema: z.object({
+        id: z.string().uuid(),
+        only_date: z.string().optional().describe("For a repeating event: remove only the occurrence on this date (YYYY-MM-DD)"),
+      }),
     },
-    async ({ id }) => {
-      const { data, error } = await createAdminClient()
+    async ({ id, only_date }) => {
+      const db = createAdminClient();
+      if (only_date) {
+        const ev = await seriesEvent(id);
+        if (ev.recurrence) {
+          const { error } = await db.from("events").update({ skip_dates: [...(ev.skip_dates ?? []), only_date] }).eq("id", id).eq("family_id", familyId());
+          if (error) throw new Error(error.message);
+          return text({ deleted: ev.title, only_date });
+        }
+      }
+      const { data, error } = await db
         .from("events")
         .delete()
         .eq("id", id)
