@@ -4,7 +4,9 @@
 
 Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby/toddler, no account).
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
-protected by RLS (`public.my_family_id()`).
+protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
+
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001 and 0002 are applied.
 
 ## Adding things for the family
 
@@ -49,7 +51,7 @@ Rules of thumb:
 - Check `notes` for context (e.g. the kindergarten address) before inventing a location.
 - Don't delete rows unless explicitly asked.
 
-## Schema (see `supabase/migrations/0001_init.sql`)
+## Schema (see `supabase/migrations/`)
 
 - `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites`
 - `events` — calendar; `responsible_member_id` = who does it, `for_member_id` = who it's about
