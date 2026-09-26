@@ -84,7 +84,7 @@ export function CareSlot({
         </span>
         <span className="min-w-0">
           <span className="block text-xs tabular-nums text-muted">
-            {kind === "dropoff" ? t("Drop-off") : t("Pick-up")} · {time}
+            {kind === "dropoff" ? "☀️" : "🌙"} {time}
           </span>
           <span className={`block truncate text-sm font-medium ${person ? "" : "text-muted"}`}>{person ? person.name : t("Who?")}</span>
         </span>

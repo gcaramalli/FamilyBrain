@@ -119,25 +119,27 @@ export default function CalendarPage() {
         <button className="btn" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <div className="flex rounded-xl border border-border p-0.5">
-          {(["month", "week", "agenda"] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => {
-                setFocus(null);
-                setMode(m);
-              }}
-              className={`rounded-lg px-3 py-1 capitalize ${mode === m ? "bg-accent text-on-accent" : ""}`}
-            >
-              {m === "month" ? t("Month") : m === "week" ? t("Week") : t("Agenda")}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="btn-ghost" onClick={() => shift(-1)} aria-label={t("Previous")}>←</button>
+      <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">
+        {(["month", "week", "agenda"] as Mode[]).map((m) => (
           <button
-            className="text-accent"
+            key={m}
+            onClick={() => {
+              setFocus(null);
+              setMode(m);
+            }}
+            className={`min-h-9 rounded-lg px-2 ${mode === m ? "bg-accent font-medium text-on-accent" : ""}`}
+          >
+            {m === "month" ? t("Month") : m === "week" ? t("Week") : t("Agenda")}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <button className="btn-ghost w-11 shrink-0" onClick={() => shift(-1)} aria-label={t("Previous")}>←</button>
+        <div className="min-w-0 text-center">
+          <div className="truncate font-semibold first-letter:uppercase">{periodLabel}</div>
+          <button
+            className="text-xs text-muted underline underline-offset-2"
             onClick={() => {
               setFocus(null);
               setAnchor(new Date());
@@ -145,8 +147,8 @@ export default function CalendarPage() {
           >
             {t("Today")}
           </button>
-          <button className="btn-ghost" onClick={() => shift(1)} aria-label={t("Next")}>→</button>
         </div>
+        <button className="btn-ghost w-11 shrink-0" onClick={() => shift(1)} aria-label={t("Next")}>→</button>
       </div>
 
       {members.length > 1 && (
@@ -163,7 +165,6 @@ export default function CalendarPage() {
 
       {mode === "month" && (
         <section className="card p-2">
-          <h2 className="px-1 pb-2 font-semibold capitalize">{periodLabel}</h2>
           <div className="grid grid-cols-7 text-center text-[11px] uppercase text-muted">
             {days.slice(0, 7).map((d) => (
               <div key={dayKey(d)} className="pb-1">{fmtDate(d, { weekday: "narrow" })}</div>
@@ -199,7 +200,7 @@ export default function CalendarPage() {
 
       {mode === "week" && (
         <section className="card p-3">
-          <div className="mb-2 text-sm text-muted">{periodLabel} · {t("drop-offs, pick-ups & trips")}</div>
+          <div className="mb-2 text-sm text-muted first-letter:uppercase">{t("drop-offs, pick-ups & trips")}</div>
           <div className="grid grid-cols-7 gap-1 text-center">
             {days.map((d) => {
               const k = dayKey(d);

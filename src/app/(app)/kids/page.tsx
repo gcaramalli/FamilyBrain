@@ -19,7 +19,14 @@ export default function KidsPage() {
   const { supabase, kids, t } = useFamily();
   const toast = useToast();
   const [kidId, setKidId] = useState<string | null>(kids[0]?.id ?? null);
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  // Open on the week still to plan: after the last preschool day (e.g. on a
+  // Saturday), that's next week.
+  const [weekStart, setWeekStart] = useState(() => {
+    const now = startOfWeek(new Date());
+    const kid0 = kids[0];
+    const rest = Array.from({ length: 7 }, (_, i) => addDays(now, i)).filter((d) => d >= startOfDay(new Date()));
+    return kid0 && !rest.some((d) => isCareDay(kid0, d)) ? addDays(now, 7) : now;
+  });
   const [events, setEvents] = useState<EventOccurrence[]>([]);
   const [upcoming, setUpcoming] = useState<EventOccurrence[]>([]);
   const [editing, setEditing] = useState<EventOccurrence | null>(null);
