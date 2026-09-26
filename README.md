@@ -58,9 +58,8 @@ npm run dev
 
 ## Using it from Claude
 
-The app exposes a **Claude connector** (MCP) at `/api/mcp` (bearer token header) with 10 tools: lists, check-off,
-purchases, restock suggestions, recipes, notes. Calendar requests go to your shared Google Calendar via
-the Google Calendar connector. Setup (env vars, adding the connector, the "Famille" project prompt):
+The app exposes a **Claude connector** (MCP) at `/api/mcp` (bearer token header) with 14 tools: calendar, lists,
+check-off, purchases, restock suggestions, recipes, notes. Setup (env vars, adding the connector, the "Famille" project prompt):
 [`docs/claude-setup.md`](docs/claude-setup.md).
 
 ## Project layout

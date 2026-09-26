@@ -2,13 +2,16 @@ import "server-only";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { stockholmToUtc, utcToStockholm } from "./time";
 
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to FAMILY_ID because the service-role client bypasses RLS.
 
 export const instructions = `Family Brain for Guillaume, Jenny and their son Charlie (Sweden, Europe/Stockholm time).
 Routing:
-- Calendar events (appointments, who picks up Charlie, trips) do NOT go here: use the Google Calendar connector, calendar "Famille".
+- Calendar (appointments, who drops off / picks up Charlie, trips, birthdays): get_events / add_event / update_event / delete_event.
+  Pass times as local Stockholm time (YYYY-MM-DDTHH:MM). Set "responsible" (who does it) and "for_whom" (who it is about) by first name.
+  Check get_events for that day first to avoid duplicates. Only delete when explicitly asked.
 - Shopping and to-dos: add_to_list / check_off / get_list. Default list is the first shopping list.
 - "We bought X" outside the list: log_purchase (feeds the "running out soon" prediction).
 - Recipes: search_recipes / add_recipe. Family facts (pickup rules, allergies, contacts): get_notes / add_note.
@@ -38,6 +41,51 @@ async function resolveList(name?: string) {
   return lists.find((l) => l.kind === "grocery") ?? lists[0];
 }
 
+async function memberIdByName(name?: string | null) {
+  if (!name) return null;
+  const { data } = await createAdminClient().from("members").select("id, name").eq("family_id", familyId());
+  const n = name.trim().toLowerCase();
+  const m = (data ?? []).find((x) => x.name.toLowerCase() === n) ?? (data ?? []).find((x) => x.name.toLowerCase().startsWith(n));
+  if (!m) throw new Error(`Unknown family member "${name}". Members: ${(data ?? []).map((x) => x.name).join(", ")}`);
+  return m.id;
+}
+
+const eventFields = {
+  title: z.string().min(1).optional(),
+  start: z.string().optional().describe("Local Stockholm time: YYYY-MM-DDTHH:MM, or YYYY-MM-DD for all-day"),
+  end: z.string().optional().describe("Local Stockholm time, optional"),
+  all_day: z.boolean().optional(),
+  location: z.string().optional(),
+  notes: z.string().optional(),
+  responsible: z.string().optional().describe("First name of who does it, e.g. 'Jenny'"),
+  for_whom: z.string().optional().describe("First name of who it is about, e.g. 'Charlie'"),
+};
+
+async function eventRow(e: {
+  title?: string;
+  start?: string;
+  end?: string;
+  all_day?: boolean;
+  location?: string;
+  notes?: string;
+  responsible?: string;
+  for_whom?: string;
+}) {
+  const row: Record<string, unknown> = {};
+  if (e.title !== undefined) row.title = e.title;
+  if (e.all_day !== undefined) row.all_day = e.all_day;
+  if (e.start !== undefined) {
+    row.starts_at = stockholmToUtc(e.start);
+    if (e.all_day === undefined && /^\d{4}-\d{2}-\d{2}$/.test(e.start.trim())) row.all_day = true;
+  }
+  if (e.end !== undefined) row.ends_at = e.end ? stockholmToUtc(e.end) : null;
+  if (e.location !== undefined) row.location = e.location || null;
+  if (e.notes !== undefined) row.notes = e.notes || null;
+  if (e.responsible !== undefined) row.responsible_member_id = await memberIdByName(e.responsible);
+  if (e.for_whom !== undefined) row.for_member_id = await memberIdByName(e.for_whom);
+  return row;
+}
+
 const itemSchema = z.object({
   title: z.string().min(1).describe("Item name, e.g. 'Milk'"),
   quantity: z.string().optional().describe("e.g. '2', '1 kg'"),
@@ -60,6 +108,111 @@ export function registerTools(server: McpServer) {
         db.from("notes").select("title, body").eq("family_id", fid).eq("pinned", true),
       ]);
       return text({ members: members.data, lists: lists.data, pinned_notes: notes.data });
+    },
+  );
+
+  server.registerTool(
+    "get_events",
+    {
+      title: "Get calendar events",
+      description: "Family calendar events in a date range (Stockholm time). Returns ids for update_event / delete_event.",
+      inputSchema: z.object({
+        from: z.string().optional().describe("YYYY-MM-DD, default today"),
+        days: z.number().int().min(1).max(92).optional().describe("Default 7"),
+      }),
+    },
+    async ({ from, days }) => {
+      const start = stockholmToUtc(from ?? utcToStockholm(new Date().toISOString()).slice(0, 10));
+      const end = new Date(new Date(start).getTime() + (days ?? 7) * 86400000).toISOString();
+      const db = createAdminClient();
+      const [{ data: events, error }, { data: members }] = await Promise.all([
+        db
+          .from("events")
+          .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id")
+          .eq("family_id", familyId())
+          .gte("starts_at", start)
+          .lt("starts_at", end)
+          .order("starts_at"),
+        db.from("members").select("id, name").eq("family_id", familyId()),
+      ]);
+      if (error) throw new Error(error.message);
+      const name = (id: string | null) => (members ?? []).find((m) => m.id === id)?.name ?? null;
+      return text(
+        (events ?? []).map((e) => ({
+          id: e.id,
+          title: e.title,
+          start: e.all_day ? utcToStockholm(e.starts_at).slice(0, 10) : utcToStockholm(e.starts_at),
+          end: e.ends_at ? utcToStockholm(e.ends_at) : null,
+          all_day: e.all_day,
+          location: e.location,
+          notes: e.notes,
+          responsible: name(e.responsible_member_id),
+          for_whom: name(e.for_member_id),
+        })),
+      );
+    },
+  );
+
+  server.registerTool(
+    "add_event",
+    {
+      title: "Add a calendar event",
+      description: "Add an event to the family calendar, e.g. 'Jenny picks up Charlie Thursday 16:00'.",
+      inputSchema: z.object({ ...eventFields, title: z.string().min(1), start: z.string() }),
+    },
+    async (e) => {
+      const row = await eventRow(e);
+      const { data, error } = await createAdminClient()
+        .from("events")
+        .insert({ ...row, family_id: familyId() })
+        .select("id")
+        .single();
+      if (error) throw new Error(error.message);
+      return text({ added: e.title, start: e.start, responsible: e.responsible ?? null, for_whom: e.for_whom ?? null, id: data.id });
+    },
+  );
+
+  server.registerTool(
+    "update_event",
+    {
+      title: "Update a calendar event",
+      description: "Change an existing event (time, person responsible, place...). Get the id from get_events. Only pass fields to change.",
+      inputSchema: z.object({ id: z.string().uuid(), ...eventFields }),
+    },
+    async ({ id, ...e }) => {
+      const row = await eventRow(e);
+      if (!Object.keys(row).length) return text("Nothing to change.");
+      const { data, error } = await createAdminClient()
+        .from("events")
+        .update(row)
+        .eq("id", id)
+        .eq("family_id", familyId())
+        .select("title")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("No event with that id.");
+      return text({ updated: data.title, changes: Object.keys(e) });
+    },
+  );
+
+  server.registerTool(
+    "delete_event",
+    {
+      title: "Delete a calendar event",
+      description: "Remove an event. Only when the user explicitly asks to delete or cancel it.",
+      inputSchema: z.object({ id: z.string().uuid() }),
+    },
+    async ({ id }) => {
+      const { data, error } = await createAdminClient()
+        .from("events")
+        .delete()
+        .eq("id", id)
+        .eq("family_id", familyId())
+        .select("title")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("No event with that id.");
+      return text({ deleted: data.title });
     },
   );
 

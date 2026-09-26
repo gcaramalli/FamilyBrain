@@ -11,7 +11,7 @@ Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny'
 ## Adding things for the family
 
 Preferred: the **Family Brain connector** (`/api/mcp` + bearer header, tools in `src/lib/mcp/tools.ts`) for
-lists, purchases, recipes and notes, and the **Google Calendar** connector (calendar "Famille") for events.
+the calendar, lists, purchases, recipes and notes (event times are passed as local Stockholm time, see `src/lib/mcp/time.ts`).
 Setup and routing prompt: `docs/claude-setup.md`.
 
 Fallback, for maintenance only (full admin access — avoid for day-to-day use): raw SQL via the Supabase connector.
