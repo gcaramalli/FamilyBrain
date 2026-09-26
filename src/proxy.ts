@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
 // Refreshes the Supabase session cookie on every request and sends
-// signed-out visitors to /login.
+// signed-out visitors to /login. API routes handle their own auth.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -41,5 +41,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/mcp|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.*|apple-icon.*|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.*|apple-icon.*|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
