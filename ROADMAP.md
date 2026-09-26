@@ -4,10 +4,10 @@ Build one feature at a time. Rough priority order — reorder freely.
 
 ## Next up
 - [ ] **Deploy**: Supabase project + Vercel (see README)
-- [ ] **Claude integration, the safe way**: the Supabase connector works today but gives Claude full
-      admin access to the database (and to other projects on the same account). Better: a small MCP
-      endpoint in this app (`/api/mcp`) with a family token and a few tools — `add_event`,
-      `add_to_list`, `log_purchase`, `get_notes` — then add it as a custom connector in the Claude app.
+- [x] **Claude connector** (`/api/mcp/<token>`), see docs/claude-setup.md
+- [ ] **Show the shared Google Calendar in the app** (read-only, via its secret iCal address) instead of
+      the app's own events table
+- [ ] Connector: per-person tokens (know who added what) or proper OAuth
 - [ ] **Recurring events**: daily förskola drop-off/pickup, weekly swimming (RRULE column).
 - [ ] **Week view** with a "who picks up Charlie" row per day.
 - [ ] **Push notifications** (PWA web push works on iOS 16.4+ once installed on the home screen):

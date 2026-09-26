@@ -56,11 +56,12 @@ npm run dev
    users to sign up". Anyone else signing up would only get an empty family of their own (RLS isolates
    families), but there's no reason to leave the door open.
 
-## Updating the calendar from Claude
+## Using it from Claude
 
-See [`CLAUDE.md`](CLAUDE.md): it documents the schema and ready-to-use SQL so Claude (Claude Code, or the
-Claude app with the Supabase connector) can do things like *"Jenny picks up Charlie at the förskola on
-Thursday at 16:00"*.
+The app exposes a **Claude connector** (MCP) at `/api/mcp/<MCP_TOKEN>` with 10 tools: lists, check-off,
+purchases, restock suggestions, recipes, notes. Calendar requests go to your shared Google Calendar via
+the Google Calendar connector. Setup (env vars, adding the connector, the "Famille" project prompt):
+[`docs/claude-setup.md`](docs/claude-setup.md).
 
 ## Project layout
 
@@ -70,6 +71,8 @@ src/proxy.ts           session refresh + redirect to /login (Next 16 "proxy", fo
 src/app/login          email + code sign-in
 src/app/(app)/         the signed-in tabs: page.tsx (Today), calendar, lists, recipes, brain, profile, admin
 src/components/        app shell, bottom sheet, forms, family context
+src/app/api/mcp/       Claude connector endpoint
+src/lib/mcp/tools.ts   the connector's tools
 src/lib/               Supabase clients, types, date helpers
 ```
 
