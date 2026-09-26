@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
 import { EventForm, newEventDraft } from "@/components/event-form";
 import { EventRow } from "@/components/event-row";
 import { Sheet } from "@/components/sheet";
 import { addDays, dayKey, fmtDate, formatDayHeading, startOfDay } from "@/lib/dates";
-import { fetchOccurrences, groupByDay, isMultiDay } from "@/lib/events";
+import { groupByDay, isMultiDay } from "@/lib/events";
+import { fetchCalendar } from "@/lib/occasions";
 import type { EventOccurrence, Member } from "@/lib/types";
 
 type Mode = "month" | "week" | "agenda";
@@ -29,24 +31,29 @@ function startOfMonthGrid(d: Date) {
 // One initial per person (and one grey "?" for events nobody is responsible for).
 function Initials({ events, max }: { events: EventOccurrence[]; max: number }) {
   const { memberById } = useFamily();
-  const people = new Map<string, { m?: Member; title: string }>();
+  const people = new Map<string, { m?: Member; title: string; badge?: string }>();
   for (const e of events) {
-    const id = e.responsible_member_id ?? "none";
-    if (!people.has(id)) people.set(id, { m: memberById(e.responsible_member_id), title: e.title });
+    // Our anniversary or a birthday shows its emoji instead of an initial.
+    const id = e.badge ? `badge:${e.key}` : e.responsible_member_id ?? "none";
+    if (!people.has(id)) people.set(id, { m: memberById(e.responsible_member_id), title: e.title, badge: e.badge });
   }
   const list = [...people.values()];
   return (
     <>
-      {list.slice(0, max).map(({ m, title }, i) => (
-        <span
-          key={i}
-          title={`${title}${m ? ` — ${m.name}` : ""}`}
-          className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold leading-none text-white"
-          style={{ background: m?.color ?? "#9ca3af" }}
-        >
-          {m ? m.name.slice(0, 1) : "?"}
-        </span>
-      ))}
+      {list.slice(0, max).map(({ m, title, badge }, i) =>
+        badge ? (
+          <span key={i} title={title} className="flex h-4 w-4 items-center justify-center text-[11px] leading-none">{badge}</span>
+        ) : (
+          <span
+            key={i}
+            title={`${title}${m ? ` — ${m.name}` : ""}`}
+            className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold leading-none text-white"
+            style={{ background: m?.color ?? "#9ca3af" }}
+          >
+            {m ? m.name.slice(0, 1) : "?"}
+          </span>
+        ),
+      )}
       {list.length > max && <span className="text-[9px] leading-4 text-muted">+{list.length - max}</span>}
     </>
   );
@@ -54,6 +61,7 @@ function Initials({ events, max }: { events: EventOccurrence[]; max: number }) {
 
 export default function CalendarPage() {
   const { supabase, members, me, t } = useFamily();
+  const router = useRouter();
   const [who, setWho] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
@@ -67,8 +75,8 @@ export default function CalendarPage() {
 
   const load = useCallback(async () => {
     const start = new Date(fromKey + "T00:00:00");
-    setEvents(await fetchOccurrences(supabase, start, addDays(start, span)));
-  }, [supabase, fromKey, span]);
+    setEvents(await fetchCalendar(supabase, members, start, addDays(start, span), t));
+  }, [supabase, members, t, fromKey, span]);
 
   useEffect(() => {
     load();
@@ -83,7 +91,7 @@ export default function CalendarPage() {
 
   // Filter: only what one person does or what is about them.
   const events = useMemo(
-    () => (who ? allEvents.filter((e) => e.responsible_member_id === who || e.for_member_id === who) : allEvents),
+    () => (who ? allEvents.filter((e) => e.badge || e.responsible_member_id === who || e.for_member_id === who) : allEvents),
     [allEvents, who],
   );
 
@@ -240,7 +248,7 @@ export default function CalendarPage() {
                 ) : (
                   <div className="divide-y divide-border">
                     {list.map((ev) => (
-                      <EventRow key={ev.key} ev={ev} day={k} onClick={() => setEditing(ev)} />
+                      <EventRow key={ev.key} ev={ev} day={k} onClick={() => (ev.link ? router.push(ev.link) : setEditing(ev))} />
                     ))}
                   </div>
                 )}

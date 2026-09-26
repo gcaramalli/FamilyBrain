@@ -8,11 +8,14 @@ import { EventRow } from "@/components/event-row";
 import { SendGift } from "@/components/send-gift";
 import { CARE_KINDS, careKind, findSlot, isCareDay } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
-import { fetchOccurrences, groupByDay } from "@/lib/events";
-import type { EventOccurrence, Member, Recipe, RestockSuggestion } from "@/lib/types";
+import { groupByDay } from "@/lib/events";
+import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
+import { whenLabel } from "@/components/occasions-panel";
+import type { EventOccurrence, Member, Occasion, Recipe, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
-  const { supabase, profile, kids, t } = useFamily();
+  const { supabase, profile, kids, members, me, t } = useFamily();
+  const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [events, setEvents] = useState<EventOccurrence[]>([]);
   const [tonight, setTonight] = useState<Recipe | null>(null);
   const [openCount, setOpenCount] = useState<number | null>(null);
@@ -21,11 +24,12 @@ export default function TodayPage() {
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
     // A week ahead: the kids' card shows the next preschool day, even after a weekend.
-    setEvents(await fetchOccurrences(supabase, today, addDays(today, 8)));
-  }, [supabase]);
+    setEvents(await fetchCalendar(supabase, members, today, addDays(today, 8), t));
+  }, [supabase, members, t]);
 
   useEffect(() => {
     loadEvents();
+    fetchOccasions(supabase).then(setOccasions);
     const channel = supabase
       .channel("today-events")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, loadEvents)
@@ -94,6 +98,8 @@ export default function TodayPage() {
           <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} day={tomorrowKey} />)}</div>
         </section>
       )}
+
+      <SoonCard occasions={occasions} meId={me?.id} />
 
       <nav className="card divide-y divide-border py-1">
         <Link href="/lists" className="flex min-h-14 items-center justify-between gap-3 py-2">
@@ -164,5 +170,26 @@ function KidCard({ kid, events, onChanged }: { kid: Member; events: EventOccurre
         );
       })}
     </section>
+  );
+}
+
+// Friends' weddings and birthdays in the coming week (only those that concern me).
+function SoonCard({ occasions, meId }: { occasions: Occasion[]; meId?: string }) {
+  const { t } = useFamily();
+  const soon = upcoming(occasions, 7).filter(({ o }) => !o.ours && (!o.member_ids.length || !meId || o.member_ids.includes(meId)));
+  if (!soon.length) return null;
+  return (
+    <Link href="/brain?tab=dates" className="card flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">{t("Soon")}</h2>
+        <span className="text-muted">→</span>
+      </div>
+      {soon.map(({ o, day, years }) => (
+        <p key={o.id} className="text-sm">
+          {OCCASION_EMOJI[o.kind]} <span className="font-medium">{o.title}</span>{" "}
+          <span className="text-muted">· {occasionLabel(t, o.kind, years)} · {whenLabel(t, daysAway(day), day)}</span>
+        </p>
+      ))}
+    </Link>
   );
 }

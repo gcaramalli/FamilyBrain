@@ -36,9 +36,12 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [x] "What can we cook tonight?" via Claude (`dinner_ideas`) + "Tonight?" card on Today
 
 ## 5. Family memory, first slice (see VISION.md)
-- [ ] People, occasions (birthdays, wedding anniversaries), tastes: tables + a "People" page
-- [ ] Paste a list (weddings, friends' children's birthdays) → Claude files it
-- [ ] Occasion reminders a week before and on the day, with a drafted message in the right language
+- [x] Occasions (weddings, birthdays) in Brain → Dates, out of the calendar except our own; 28 weddings imported
+- [x] Paste a list (`251025 Names`, `*` = only me, `//` = no longer celebrated)
+- [x] Reminder the evening before, only to the people concerned
+- [ ] People and tastes (who they are to us, likes, gift ideas); link occasions to people
+- [ ] Drafted message in the right language in the reminder (needs `ANTHROPIC_API_KEY`)
+- [x] Connector tools `get_occasions`, `add_occasion`
 - [ ] Connector tools `remember`, `recall`, `get_person`
 - [ ] Charlie's measurements and growth curve
 

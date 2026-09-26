@@ -8,6 +8,7 @@ import { CARE_KINDS, careTitle, findSlot, isCareDay } from "@/lib/care";
 import { addDays, dayKey, startOfDay } from "@/lib/dates";
 import { fetchOccurrences } from "@/lib/events";
 import { isLocale, translator } from "@/lib/i18n";
+import { fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel } from "@/lib/occasions";
 import { pushEnabled, sendPush } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventOccurrence, Member } from "@/lib/types";
@@ -26,11 +27,17 @@ export async function GET(req: Request) {
   let sent = 0;
 
   for (const { id: familyId } of families ?? []) {
-    const [{ data: members }, { data: profiles }, events] = await Promise.all([
+    const [{ data: members }, { data: profiles }, events, occasions] = await Promise.all([
       db.from("members").select("*").eq("family_id", familyId),
       db.from("profiles").select("id, locale").eq("family_id", familyId),
       fetchOccurrences(db, tomorrow, addDays(tomorrow, 1), familyId),
+      fetchOccasions(db, familyId),
     ]);
+    // Weddings and birthdays whose anniversary is tomorrow and still celebrated.
+    const dates = occasions
+      .filter((o) => !o.ended)
+      .map((o) => ({ o, ...nextAnniversary(o.date, tomorrow) }))
+      .filter((x) => dayKey(x.day) === key && x.years > 0);
     const people = (members ?? []) as Member[];
     const kids = people.filter((m) => !m.profile_id);
     const adults = people.filter((m) => m.profile_id);
@@ -58,12 +65,15 @@ export async function GET(req: Request) {
           }
         }
       }
-      if (!mine.length && !nobody.length) continue;
+      const celebrate = dates
+        .filter(({ o }) => !o.member_ids.length || o.member_ids.includes(adult.id))
+        .map(({ o, years }) => `${OCCASION_EMOJI[o.kind]} ${o.title} · ${occasionLabel(t, o.kind, years)}${o.ours ? "" : ` · ${t("send them a message")}`}`);
+      if (!mine.length && !nobody.length && !celebrate.length) continue;
 
       sent += await sendPush(adult.profile_id!, {
         title: nobody.length ? `⚠️ ${t("Tomorrow")}` : t("Tomorrow"),
-        body: [...mine, ...nobody].join("\n"),
-        url: nobody.length ? "/kids" : "/",
+        body: [...mine, ...nobody, ...celebrate].join("\n"),
+        url: nobody.length ? "/kids" : mine.length ? "/" : "/brain?tab=dates",
         tag: `evening-${key}`,
       });
     }
