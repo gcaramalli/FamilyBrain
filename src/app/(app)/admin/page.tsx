@@ -125,7 +125,7 @@ export default function AdminPage() {
           <input className="input" type="email" required placeholder="jenny@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
           <button className="btn">Invite</button>
         </form>
-        <p className="text-xs text-muted">They sign in on the app with this email and join the family automatically.</p>
+        <p className="text-xs text-muted">Then create their account in Supabase → Authentication → Users → Add user (email + password, “Auto confirm”). Because of this invite, they land in this family.</p>
       </section>
 
       <section className="card flex flex-col gap-2">

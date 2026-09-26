@@ -4,15 +4,31 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-// Email + 6-digit code instead of a magic link: on iPhone, a link opens in
-// Safari, not in the home-screen app, so the app would stay signed out.
+// Email + password by default. The emailed 6-digit code stays as a fallback
+// (Supabase's built-in mailer only allows a few emails per hour).
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [step, setStep] = useState<"email" | "code">("email");
+  const [mode, setMode] = useState<"password" | "code-email" | "code">("password");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function done() {
+    router.replace("/");
+    router.refresh();
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await createClient().auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (error) setError(error.message === "Invalid login credentials" ? "Email ou mot de passe incorrect." : error.message);
+    else done();
+  }
 
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -20,11 +36,11 @@ export default function LoginPage() {
     setError(null);
     const { error } = await createClient().auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
     setBusy(false);
     if (error) setError(error.message);
-    else setStep("code");
+    else setMode("code");
   }
 
   async function verify(e: React.FormEvent) {
@@ -34,38 +50,61 @@ export default function LoginPage() {
     const { error } = await createClient().auth.verifyOtp({ email, token: code.trim(), type: "email" });
     setBusy(false);
     if (error) setError(error.message);
-    else {
-      router.replace("/");
-      router.refresh();
-    }
+    else done();
   }
+
+  const emailField = (
+    <input
+      className="input"
+      type="email"
+      autoComplete="email"
+      required
+      value={email}
+      onChange={(e) => setEmail(e.target.value)}
+      placeholder="Email"
+    />
+  );
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6">
       <div>
         <div className="text-4xl">🏡</div>
         <h1 className="h1 mt-2">Family Brain</h1>
-        <p className="text-muted">Calendar, lists, recipes and everything we need to remember.</p>
+        <p className="text-muted">Calendrier, listes, recettes et tout ce qu&apos;on doit retenir.</p>
       </div>
 
-      {step === "email" ? (
-        <form onSubmit={sendCode} className="flex flex-col gap-3">
-          <label className="label" htmlFor="email">Email</label>
+      {mode === "password" && (
+        <form onSubmit={signInWithPassword} className="flex flex-col gap-3">
+          {emailField}
           <input
-            id="email"
             className="input"
-            type="email"
-            autoComplete="email"
+            type="password"
+            autoComplete="current-password"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mot de passe"
           />
-          <button className="btn" disabled={busy}>{busy ? "Sending…" : "Send me a code"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Connexion…" : "Se connecter"}</button>
+          <button type="button" className="text-sm text-muted" onClick={() => { setMode("code-email"); setError(null); }}>
+            Mot de passe oublié ? Recevoir un code par email
+          </button>
         </form>
-      ) : (
+      )}
+
+      {mode === "code-email" && (
+        <form onSubmit={sendCode} className="flex flex-col gap-3">
+          {emailField}
+          <button className="btn" disabled={busy}>{busy ? "Envoi…" : "Envoyer un code"}</button>
+          <button type="button" className="text-sm text-muted" onClick={() => { setMode("password"); setError(null); }}>
+            ← Retour au mot de passe
+          </button>
+        </form>
+      )}
+
+      {mode === "code" && (
         <form onSubmit={verify} className="flex flex-col gap-3">
-          <p className="text-sm text-muted">We sent a code to <b>{email}</b>.</p>
+          <p className="text-sm text-muted">Code envoyé à <b>{email}</b>.</p>
           <input
             className="input text-center text-2xl tracking-[0.4em]"
             inputMode="numeric"
@@ -75,9 +114,9 @@ export default function LoginPage() {
             onChange={(e) => setCode(e.target.value)}
             placeholder="123456"
           />
-          <button className="btn" disabled={busy}>{busy ? "Checking…" : "Sign in"}</button>
-          <button type="button" className="text-sm text-muted" onClick={() => setStep("email")}>
-            Use another email
+          <button className="btn" disabled={busy}>{busy ? "Vérification…" : "Se connecter"}</button>
+          <button type="button" className="text-sm text-muted" onClick={() => setMode("password")}>
+            ← Retour
           </button>
         </form>
       )}

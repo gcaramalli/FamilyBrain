@@ -14,6 +14,15 @@ export default function ProfilePage() {
   const [color, setColor] = useState(profile.color);
   const [emoji, setEmoji] = useState(me?.emoji ?? "🙂");
   const [saved, setSaved] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [pwMessage, setPwMessage] = useState<string | null>(null);
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPwMessage(error ? error.message : "✓ Mot de passe changé");
+    if (!error) setNewPassword("");
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -60,6 +69,22 @@ export default function ProfilePage() {
         </div>
         <p className="text-sm text-muted">{profile.email} · {profile.role}</p>
         <button className="btn">{saved ? "✓ Saved" : "Save"}</button>
+      </form>
+
+      <form onSubmit={changePassword} className="card flex flex-col gap-3">
+        <h2 className="h2">🔑 Mot de passe</h2>
+        <input
+          className="input"
+          type="password"
+          autoComplete="new-password"
+          minLength={8}
+          required
+          placeholder="Nouveau mot de passe (8 caractères min.)"
+          value={newPassword}
+          onChange={(e) => { setNewPassword(e.target.value); setPwMessage(null); }}
+        />
+        <button className="btn">Changer le mot de passe</button>
+        {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
 
       <section className="card text-sm">
