@@ -6,7 +6,7 @@ import { useFamily } from "@/components/family-context";
 import { EventRow } from "@/components/event-row";
 import { SendGift } from "@/components/send-gift";
 import { addDays, dayKey, daysUntil, startOfDay } from "@/lib/dates";
-import { fetchOccurrences } from "@/lib/events";
+import { fetchOccurrences, groupByDay } from "@/lib/events";
 import type { EventOccurrence, Recipe, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
@@ -42,8 +42,10 @@ export default function TodayPage() {
   }, [supabase]);
 
   const todayKey = dayKey(new Date());
-  const today = events.filter((e) => dayKey(e.occurrence_start) === todayKey);
-  const tomorrow = events.filter((e) => dayKey(e.occurrence_start) !== todayKey);
+  const tomorrowKey = dayKey(addDays(new Date(), 1));
+  const byDay = groupByDay(events);
+  const today = byDay.get(todayKey) ?? [];
+  const tomorrow = byDay.get(tomorrowKey) ?? [];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Hi" : "Good evening";
 
@@ -59,13 +61,13 @@ export default function TodayPage() {
           <h2 className="h2">Today</h2>
           <Link href="/calendar" className="text-sm text-accent">Calendar →</Link>
         </div>
-        {today.length === 0 ? <p className="py-1 text-sm text-muted">Nothing planned.</p> : <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} />)}</div>}
+        {today.length === 0 ? <p className="py-1 text-sm text-muted">Nothing planned.</p> : <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} day={todayKey} />)}</div>}
       </section>
 
       {tomorrow.length > 0 && (
         <section className="card">
           <h2 className="h2">Tomorrow</h2>
-          <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} />)}</div>
+          <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} day={tomorrowKey} />)}</div>
         </section>
       )}
 

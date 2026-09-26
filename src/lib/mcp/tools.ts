@@ -174,7 +174,9 @@ export function registerTools(server: McpServer) {
           .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id, recurrence, recurrence_until")
           .eq("family_id", familyId())
           .lt("starts_at", end)
-          .or(`and(recurrence.is.null,starts_at.gte.${start}),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromYmd}))`)
+          .or(
+            `and(recurrence.is.null,or(starts_at.gte.${start},ends_at.gte.${start})),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromYmd}))`,
+          )
           .order("starts_at"),
         db.from("members").select("id, name").eq("family_id", familyId()),
       ]);
@@ -185,7 +187,9 @@ export function registerTools(server: McpServer) {
         const local = utcToStockholm(e.starts_at); // "YYYY-MM-DD HH:MM"
         const [baseDate, time] = local.split(" ");
         const duration = e.ends_at ? new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime() : null;
-        for (const d of occurrenceDates(baseDate, e.recurrence as Recurrence | null, e.recurrence_until, fromYmd, toYmd)) {
+        // A one-off multi-day event that started before the window and is still running.
+        const ongoing = !e.recurrence && baseDate < fromYmd ? [baseDate] : [];
+        for (const d of [...ongoing, ...occurrenceDates(baseDate, e.recurrence as Recurrence | null, e.recurrence_until, fromYmd, toYmd)]) {
           const occ = stockholmToUtc(`${d}T${time}`);
           out.push({
             id: e.id,
