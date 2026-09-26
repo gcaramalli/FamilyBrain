@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -122,6 +123,10 @@ export default function LoginPage() {
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      <p className="text-center text-sm text-muted">
+        New here? <Link href="/signup" className="text-accent">Create a family</Link>
+      </p>
     </main>
   );
 }

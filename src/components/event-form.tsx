@@ -65,7 +65,7 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
 
   return (
     <form onSubmit={save} className="flex flex-col gap-3">
-      <input className="input" placeholder="What? e.g. Pick up Charlie" required value={d.title} onChange={(e) => set("title", e.target.value)} autoFocus />
+      <input className="input" placeholder="What? e.g. Preschool pick-up" required value={d.title} onChange={(e) => set("title", e.target.value)} autoFocus />
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={d.all_day} onChange={(e) => set("all_day", e.target.checked)} /> All day
       </label>
@@ -90,7 +90,7 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
           />
         </div>
       </div>
-      <input className="input" placeholder="Where? e.g. Förskolan Solen" value={d.location ?? ""} onChange={(e) => set("location", e.target.value || null)} />
+      <input className="input" placeholder="Where?" value={d.location ?? ""} onChange={(e) => set("location", e.target.value || null)} />
       <div className="grid grid-cols-2 gap-2">
         <div>
           <span className="label">Who&apos;s responsible</span>

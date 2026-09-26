@@ -1,6 +1,6 @@
 # Hembrain 🏡
 
-Shared family app for Guillaume, Jenny and Charlie: **calendar**, **shared lists** (groceries, to-dos),
+Shared family app (multi-family): **calendar**, **shared lists** (groceries, to-dos),
 **recipes**, and a **family brain** (notes: pickup rules, allergies, contacts…). Works on both phones as
 an installable web app (PWA).
 
@@ -47,14 +47,22 @@ npm run dev
 2. The public Supabase URL and key default to the family project (`src/lib/supabase/config.ts`); env vars `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` override them.
 3. Deploy, then put the URL in Supabase *Site URL* (step 1.4).
 
-### 4. Family onboarding
-1. **Guillaume signs in first** → a family is created, he's admin, with a *Groceries* and a *To-do* list.
-2. Admin → **Invite** Jenny's email. When she signs in with that email she joins the family automatically.
-3. Admin → **+ Person** → Charlie 👶 (no account needed).
-4. Both: open the URL on the phone → *Add to Home Screen*.
-5. Once both of you are in: Supabase → Authentication → Sign In / Providers → turn **off** "Allow new
-   users to sign up". Anyone else signing up would only get an empty family of their own (RLS isolates
-   families), but there's no reason to leave the door open.
+### 4. Family onboarding (multi-family)
+Supabase → Authentication → Sign In / Providers: **Allow new users to sign up** = on, and under Email,
+**Confirm email** = off (the sandbox mailer can't reach other people; turn it back on once a real sending
+domain is set up).
+
+1. Open `/signup` → **Create your family**: family name, first name, email, password. You become admin, with a
+   *Groceries* and a *To-do* list.
+2. Admin → **Invite**: enter their email and role → the phone's share sheet opens with a private link
+   (`/signup?invite=…`, single use, 14 days). Send it by SMS/WhatsApp.
+3. They open the link, enter first name, email and password, and land in your family. If an admin already
+   created a member with the same first name, that member is linked to the new account.
+4. Admin → **+ Person** for people without an account (kids).
+5. Everyone: open the URL on the phone → *Add to Home Screen*.
+
+Joining requires the invite code, not just a matching email: with email confirmation off, an email address
+proves nothing. Each family only ever sees its own data (RLS on `family_id`).
 
 ## Using it from Claude
 

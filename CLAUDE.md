@@ -6,7 +6,7 @@ Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001 and 0002 are applied.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0003 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0003_multi_family_signup.sql`.
 
 ## Adding things for the family
 
@@ -53,7 +53,7 @@ Rules of thumb:
 
 ## Schema (see `supabase/migrations/`)
 
-- `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites`
+- `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites` (secret `code`, `expires_at`, single use)
 - `events` — calendar; `responsible_member_id` = who does it, `for_member_id` = who it's about
 - `lists` (`kind` grocery/todo) and `list_items`
 - `purchases` — auto-filled by a trigger when a grocery item is checked off; `source` list/manual/receipt

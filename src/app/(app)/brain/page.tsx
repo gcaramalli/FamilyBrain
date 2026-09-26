@@ -70,7 +70,7 @@ export default function BrainPage() {
             </button>
           </li>
         ))}
-        {notes.length === 0 && <li className="card text-sm text-muted">Start with “Kindergarten”: address, opening hours, who is allowed to pick up Charlie.</li>}
+        {notes.length === 0 && <li className="card text-sm text-muted">Start with “Preschool”: address, opening hours, who is allowed to pick up the kids.</li>}
       </ul>
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? "Edit note" : "New note"}>

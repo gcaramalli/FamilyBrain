@@ -22,7 +22,7 @@ export type Member = {
   notes: string | null;
 };
 
-export type Invite = { email: string; family_id: string; role: Role; created_at: string };
+export type Invite = { email: string; family_id: string; role: Role; code: string; expires_at: string; created_at: string };
 
 export type CalendarEvent = {
   id: string;

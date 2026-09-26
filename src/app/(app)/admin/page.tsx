@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [lists, setLists] = useState<List[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [bought, setBought] = useState("");
 
   const load = useCallback(async () => {
@@ -52,14 +53,42 @@ export default function AdminPage() {
 
   async function invite(e: React.FormEvent) {
     e.preventDefault();
-    const { error } = await supabase.from("invites").insert({ email: inviteEmail.trim().toLowerCase(), family_id: family.id });
+    const { data, error } = await supabase
+      .from("invites")
+      .insert({ email: inviteEmail.trim().toLowerCase(), family_id: family.id, role: inviteRole })
+      .select()
+      .single<Invite>();
     if (error) return alert(error.message);
     setInviteEmail("");
-    load();
+    await load();
+    if (data) shareInvite(data);
+  }
+
+  function inviteLink(i: Invite) {
+    return `${window.location.origin}/signup?invite=${i.code}`;
+  }
+
+  // Opens the phone's share sheet (SMS, WhatsApp…) or copies the link.
+  async function shareInvite(i: Invite) {
+    const url = inviteLink(i);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Join ${family.name} on Hembrain`, url });
+        return;
+      }
+    } catch {
+      // Share sheet dismissed: fall back to copying.
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      alert("Invite link copied. Send it by SMS or WhatsApp.");
+    } catch {
+      prompt("Copy this invite link:", url);
+    }
   }
 
   async function addMember() {
-    const name = prompt("Name? (e.g. Charlie)");
+    const name = prompt("Name?");
     if (!name) return;
     await supabase.from("members").insert({ name, emoji: "👶", color: "#d97706" });
     refresh();
@@ -116,16 +145,27 @@ export default function AdminPage() {
           ))}
           {invites.map((i) => (
             <li key={i.email} className="flex items-center justify-between py-2 text-sm">
-              <span>✉️ {i.email} <span className="text-muted">(invited)</span></span>
-              <button className="text-danger" onClick={async () => { await supabase.from("invites").delete().eq("email", i.email); load(); }}>Cancel</button>
+              <span>
+                ✉️ {i.email} <span className="text-muted">({i.role}, until {new Date(i.expires_at).toLocaleDateString()})</span>
+              </span>
+              <span className="flex gap-3">
+                <button className="text-accent" onClick={() => shareInvite(i)}>Share link</button>
+                <button className="text-danger" onClick={async () => { await supabase.from("invites").delete().eq("code", i.code); load(); }}>Cancel</button>
+              </span>
             </li>
           ))}
         </ul>
         <form onSubmit={invite} className="flex gap-2">
-          <input className="input" type="email" required placeholder="jenny@example.com" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+          <input className="input" type="email" required placeholder="Their email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+          <select className="rounded-xl border border-border bg-surface px-2" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "member" | "admin")}>
+            <option value="member">member</option>
+            <option value="admin">admin</option>
+          </select>
           <button className="btn">Invite</button>
         </form>
-        <p className="text-xs text-muted">Then create their account in Supabase → Authentication → Users → Add user (email + password, “Auto confirm”). Because of this invite, they land in this family.</p>
+        <p className="text-xs text-muted">
+          Creates a private link to send by SMS or WhatsApp. Whoever opens it can join this family, so only send it to the right person. Valid 14 days, single use.
+        </p>
       </section>
 
       <section className="card flex flex-col gap-2">

@@ -73,7 +73,7 @@ export default function RecipesPage() {
       {recipes.length === 0 ? (
         <div className="card text-center text-muted">
           <p className="text-3xl">🍲</p>
-          <p className="mt-2">No recipes yet. Add the family classics first — Charlie&apos;s favourites, the weeknight 20-minute dinners.</p>
+          <p className="mt-2">No recipes yet. Add the family classics first — the kids&apos; favourites, the weeknight 20-minute dinners.</p>
         </div>
       ) : (
         <ul className="grid gap-3">
