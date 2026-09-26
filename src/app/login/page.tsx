@@ -26,7 +26,7 @@ export default function LoginPage() {
     setError(null);
     const { error } = await createClient().auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) setError(error.message === "Invalid login credentials" ? "Email ou mot de passe incorrect." : error.message);
+    if (error) setError(error.message === "Invalid login credentials" ? "Wrong email or password." : error.message);
     else done();
   }
 
@@ -70,7 +70,7 @@ export default function LoginPage() {
       <div>
         <div className="text-4xl">🏡</div>
         <h1 className="h1 mt-2">Family Brain</h1>
-        <p className="text-muted">Calendrier, listes, recettes et tout ce qu&apos;on doit retenir.</p>
+        <p className="text-muted">Calendar, lists, recipes and everything we need to remember.</p>
       </div>
 
       {mode === "password" && (
@@ -83,11 +83,11 @@ export default function LoginPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mot de passe"
+            placeholder="Password"
           />
-          <button className="btn" disabled={busy}>{busy ? "Connexion…" : "Se connecter"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
           <button type="button" className="text-sm text-muted" onClick={() => { setMode("code-email"); setError(null); }}>
-            Mot de passe oublié ? Recevoir un code par email
+            Forgot your password? Get a code by email
           </button>
         </form>
       )}
@@ -95,16 +95,16 @@ export default function LoginPage() {
       {mode === "code-email" && (
         <form onSubmit={sendCode} className="flex flex-col gap-3">
           {emailField}
-          <button className="btn" disabled={busy}>{busy ? "Envoi…" : "Envoyer un code"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Sending…" : "Send me a code"}</button>
           <button type="button" className="text-sm text-muted" onClick={() => { setMode("password"); setError(null); }}>
-            ← Retour au mot de passe
+            ← Back to password
           </button>
         </form>
       )}
 
       {mode === "code" && (
         <form onSubmit={verify} className="flex flex-col gap-3">
-          <p className="text-sm text-muted">Code envoyé à <b>{email}</b>.</p>
+          <p className="text-sm text-muted">Code sent to <b>{email}</b>.</p>
           <input
             className="input text-center text-2xl tracking-[0.4em]"
             inputMode="numeric"
@@ -114,9 +114,9 @@ export default function LoginPage() {
             onChange={(e) => setCode(e.target.value)}
             placeholder="123456"
           />
-          <button className="btn" disabled={busy}>{busy ? "Vérification…" : "Se connecter"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Checking…" : "Sign in"}</button>
           <button type="button" className="text-sm text-muted" onClick={() => setMode("password")}>
-            ← Retour
+            ← Back
           </button>
         </form>
       )}

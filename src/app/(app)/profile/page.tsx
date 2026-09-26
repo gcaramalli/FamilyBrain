@@ -20,7 +20,7 @@ export default function ProfilePage() {
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setPwMessage(error ? error.message : "✓ Mot de passe changé");
+    setPwMessage(error ? error.message : "✓ Password changed");
     if (!error) setNewPassword("");
   }
 
@@ -72,18 +72,18 @@ export default function ProfilePage() {
       </form>
 
       <form onSubmit={changePassword} className="card flex flex-col gap-3">
-        <h2 className="h2">🔑 Mot de passe</h2>
+        <h2 className="h2">🔑 Password</h2>
         <input
           className="input"
           type="password"
           autoComplete="new-password"
           minLength={8}
           required
-          placeholder="Nouveau mot de passe (8 caractères min.)"
+          placeholder="New password (at least 8 characters)"
           value={newPassword}
           onChange={(e) => { setNewPassword(e.target.value); setPwMessage(null); }}
         />
-        <button className="btn">Changer le mot de passe</button>
+        <button className="btn">Change password</button>
         {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
 
