@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
 import type { Invite, List, Member, Profile } from "@/lib/types";
 
-type Purchase = { id: string; item_name: string; purchased_at: string; source: string };
+type Purchase = { id: string; item_name: string; purchased_at: string; source: string; store: string | null; price: number | null };
 
 export default function AdminPage() {
   const { supabase, profile, family, members } = useFamily();
@@ -25,7 +25,7 @@ export default function AdminPage() {
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("invites").select("*").order("created_at"),
       supabase.from("lists").select("*").order("position"),
-      supabase.from("purchases").select("id, item_name, purchased_at, source").order("purchased_at", { ascending: false }).limit(30),
+      supabase.from("purchases").select("id, item_name, purchased_at, source, store, price").order("purchased_at", { ascending: false }).limit(30),
     ]);
     setProfiles((p.data ?? []) as Profile[]);
     setInvites((i.data ?? []) as Invite[]);
@@ -203,7 +203,10 @@ export default function AdminPage() {
           {purchases.map((p) => (
             <li key={p.id} className="flex justify-between py-1.5">
               <span>{p.item_name}</span>
-              <span className="text-muted">{new Date(p.purchased_at).toLocaleDateString()} · {p.source}</span>
+              <span className="text-muted">
+                {new Date(p.purchased_at).toLocaleDateString()} · {p.store ?? p.source}
+                {p.price != null && ` · ${p.price} kr`}
+              </span>
             </li>
           ))}
         </ul>

@@ -5,23 +5,28 @@ import { useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { EventRow } from "@/components/event-row";
 import { addDays, dayKey, daysUntil, startOfDay } from "@/lib/dates";
-import type { CalendarEvent, RestockSuggestion } from "@/lib/types";
+import { fetchOccurrences } from "@/lib/events";
+import type { EventOccurrence, Recipe, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
   const { supabase, profile } = useFamily();
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [events, setEvents] = useState<EventOccurrence[]>([]);
+  const [tonight, setTonight] = useState<Recipe | null>(null);
   const [openCount, setOpenCount] = useState<number | null>(null);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
 
   useEffect(() => {
     const today = startOfDay(new Date());
+    fetchOccurrences(supabase, today, addDays(today, 2)).then(setEvents);
+    // "Tonight?": favourites first, then any recipe.
     supabase
-      .from("events")
+      .from("recipes")
       .select("*")
-      .gte("starts_at", today.toISOString())
-      .lt("starts_at", addDays(today, 2).toISOString())
-      .order("starts_at")
-      .then(({ data }) => setEvents((data ?? []) as CalendarEvent[]));
+      .then(({ data }) => {
+        const all = (data ?? []) as Recipe[];
+        const pool = all.filter((r) => r.favorite).length ? all.filter((r) => r.favorite) : all;
+        setTonight(pool.length ? pool[Math.floor(Math.random() * pool.length)] : null);
+      });
     supabase
       .from("list_items")
       .select("id, lists!inner(kind)", { count: "exact", head: true })
@@ -36,8 +41,8 @@ export default function TodayPage() {
   }, [supabase]);
 
   const todayKey = dayKey(new Date());
-  const today = events.filter((e) => dayKey(e.starts_at) === todayKey);
-  const tomorrow = events.filter((e) => dayKey(e.starts_at) !== todayKey);
+  const today = events.filter((e) => dayKey(e.occurrence_start) === todayKey);
+  const tomorrow = events.filter((e) => dayKey(e.occurrence_start) !== todayKey);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Hi" : "Good evening";
 
@@ -53,15 +58,25 @@ export default function TodayPage() {
           <h2 className="h2">Today</h2>
           <Link href="/calendar" className="text-sm text-accent">Calendar →</Link>
         </div>
-        {today.length === 0 ? <p className="py-1 text-sm text-muted">Nothing planned.</p> : <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.id} ev={e} />)}</div>}
+        {today.length === 0 ? <p className="py-1 text-sm text-muted">Nothing planned.</p> : <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} />)}</div>}
       </section>
 
       {tomorrow.length > 0 && (
         <section className="card">
           <h2 className="h2">Tomorrow</h2>
-          <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.id} ev={e} />)}</div>
+          <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} />)}</div>
         </section>
       )}
+
+      <Link href="/recipes" className="card flex items-center justify-between">
+        <div>
+          <h2 className="h2">🍽 Tonight?</h2>
+          <p className="text-sm text-muted">
+            {tonight ? `${tonight.title}${tonight.prep_minutes ? ` · ${tonight.prep_minutes} min` : ""}` : "Add a few recipes to get ideas here."}
+          </p>
+        </div>
+        <span className="text-muted">→</span>
+      </Link>
 
       <Link href="/lists" className="card flex items-center justify-between">
         <div>

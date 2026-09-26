@@ -10,6 +10,8 @@ type FamilyContextValue = {
   members: Member[];
   supabase: ReturnType<typeof createClient>;
   memberById: (id: string | null | undefined) => Member | undefined;
+  // "Added by Jennie" — null when it was me or unknown.
+  addedBy: (createdBy: string | null | undefined) => string | null;
 };
 
 const FamilyContext = createContext<FamilyContextValue | null>(null);
@@ -33,6 +35,8 @@ export function FamilyProvider({
       members,
       supabase,
       memberById: (id: string | null | undefined) => members.find((m) => m.id === id),
+      addedBy: (createdBy: string | null | undefined) =>
+        createdBy && createdBy !== profile.id ? members.find((m) => m.profile_id === createdBy)?.name ?? null : null,
     };
   }, [profile, family, members]);
 

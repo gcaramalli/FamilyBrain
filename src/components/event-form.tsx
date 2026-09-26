@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFamily } from "./family-context";
 import { MemberSelect } from "./member-select";
 import { toLocalInput } from "@/lib/dates";
+import { RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import type { CalendarEvent } from "@/lib/types";
 
 type Draft = Omit<CalendarEvent, "id"> & { id?: string };
@@ -25,6 +26,8 @@ export function newEventDraft(day?: Date): Draft {
     notes: null,
     responsible_member_id: null,
     for_member_id: null,
+    recurrence: null,
+    recurrence_until: null,
   };
 }
 
@@ -48,6 +51,8 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
       notes: d.notes,
       responsible_member_id: d.responsible_member_id,
       for_member_id: d.for_member_id,
+      recurrence: d.recurrence,
+      recurrence_until: d.recurrence ? d.recurrence_until : null,
     };
     const { error } = id
       ? await supabase.from("events").update(fields).eq("id", id)
@@ -58,7 +63,7 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
   }
 
   async function remove() {
-    if (!d.id || !confirm("Delete this event?")) return;
+    if (!d.id || !confirm(d.recurrence ? "Delete the whole series?" : "Delete this event?")) return;
     await supabase.from("events").delete().eq("id", d.id);
     onDone();
   }
@@ -90,6 +95,24 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
           />
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <span className="label">Repeats</span>
+          <select className="input" value={d.recurrence ?? ""} onChange={(e) => set("recurrence", (e.target.value || null) as Recurrence | null)}>
+            <option value="">Never</option>
+            {RECURRENCES.map((r) => (
+              <option key={r.id} value={r.id}>{r.label}</option>
+            ))}
+          </select>
+        </div>
+        {d.recurrence && (
+          <div>
+            <span className="label">Until (optional)</span>
+            <input className="input" type="date" value={d.recurrence_until ?? ""} onChange={(e) => set("recurrence_until", e.target.value || null)} />
+          </div>
+        )}
+      </div>
+      {d.id && d.recurrence && <p className="text-xs text-muted">Changes apply to every occurrence of this series.</p>}
       <input className="input" placeholder="Where?" value={d.location ?? ""} onChange={(e) => set("location", e.target.value || null)} />
       <div className="grid grid-cols-2 gap-2">
         <div>

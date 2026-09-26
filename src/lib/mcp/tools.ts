@@ -3,6 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mcpContext, type McpContext } from "./context";
+import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
+import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 
 // Tools exposed to Claude through the family connector. Every query is
@@ -21,7 +23,11 @@ Routing:
   Check get_events for that day first to avoid duplicates. Only delete when explicitly asked.
 - Shopping and to-dos: add_to_list / check_off / get_list. Default list is the first shopping list.
 - "We bought X" outside the list: log_purchase (feeds the "running out soon" prediction).
-- Recipes: search_recipes / add_recipe. Family facts (pickup rules, allergies, contacts): get_notes / add_note.
+- Recipes: search_recipes / add_recipe. "What should we cook tonight?": dinner_ideas, then suggest 2-3 options
+  (prefer favourites and recipes whose ingredients were bought recently) and offer to add missing ingredients.
+- Receipt photo: read every line, then log_receipt with store, date and items. Use the family's usual item
+  names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
+- Family facts (pickup rules, allergies, contacts): get_notes / add_note.
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -34,6 +40,26 @@ function familyId() {
   if (!ctx) throw new Error("No family context for this request");
   return ctx.familyId;
 }
+
+// Who is talking, stored as created_by so the app can show "added by …".
+function createdBy() {
+  return mcpContext.getStore()?.profileId ?? null;
+}
+
+// Category last used for this item in the family, else a keyword guess.
+async function categoryFor(title: string) {
+  const { data } = await createAdminClient()
+    .from("list_items")
+    .select("category")
+    .eq("family_id", familyId())
+    .ilike("title", title.trim())
+    .not("category", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return data?.[0]?.category ?? guessCategory(title);
+}
+
+const recurrenceIds = RECURRENCES.map((r) => r.id) as [Recurrence, ...Recurrence[]];
 
 async function resolveList(name?: string) {
   const db = createAdminClient();
@@ -67,6 +93,8 @@ const eventFields = {
   notes: z.string().optional(),
   responsible: z.string().optional().describe("First name of who does it, e.g. 'Jenny'"),
   for_whom: z.string().optional().describe("First name of who it is about, e.g. 'Charlie'"),
+  repeats: z.enum(recurrenceIds).optional().describe("Repeat the event: daily, weekdays (Mon-Fri), weekly, biweekly, monthly"),
+  repeat_until: z.string().optional().describe("Last date of the series, YYYY-MM-DD"),
 };
 
 async function eventRow(e: {
@@ -78,6 +106,8 @@ async function eventRow(e: {
   notes?: string;
   responsible?: string;
   for_whom?: string;
+  repeats?: Recurrence;
+  repeat_until?: string;
 }) {
   const row: Record<string, unknown> = {};
   if (e.title !== undefined) row.title = e.title;
@@ -91,6 +121,8 @@ async function eventRow(e: {
   if (e.notes !== undefined) row.notes = e.notes || null;
   if (e.responsible !== undefined) row.responsible_member_id = await memberIdByName(e.responsible);
   if (e.for_whom !== undefined) row.for_member_id = await memberIdByName(e.for_whom);
+  if (e.repeats !== undefined) row.recurrence = e.repeats;
+  if (e.repeat_until !== undefined) row.recurrence_until = e.repeat_until || null;
   return row;
 }
 
@@ -130,34 +162,48 @@ export function registerTools(server: McpServer) {
       }),
     },
     async ({ from, days }) => {
-      const start = stockholmToUtc(from ?? utcToStockholm(new Date().toISOString()).slice(0, 10));
+      const fromYmd = from ?? utcToStockholm(new Date().toISOString()).slice(0, 10);
+      const start = stockholmToUtc(fromYmd);
       const end = new Date(new Date(start).getTime() + (days ?? 7) * 86400000).toISOString();
+      const toYmd = utcToStockholm(new Date(new Date(end).getTime() - 1).toISOString()).slice(0, 10);
       const db = createAdminClient();
       const [{ data: events, error }, { data: members }] = await Promise.all([
         db
           .from("events")
-          .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id")
+          .select("id, title, starts_at, ends_at, all_day, location, notes, responsible_member_id, for_member_id, recurrence, recurrence_until")
           .eq("family_id", familyId())
-          .gte("starts_at", start)
           .lt("starts_at", end)
+          .or(`and(recurrence.is.null,starts_at.gte.${start}),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromYmd}))`)
           .order("starts_at"),
         db.from("members").select("id, name").eq("family_id", familyId()),
       ]);
       if (error) throw new Error(error.message);
       const name = (id: string | null) => (members ?? []).find((m) => m.id === id)?.name ?? null;
-      return text(
-        (events ?? []).map((e) => ({
-          id: e.id,
-          title: e.title,
-          start: e.all_day ? utcToStockholm(e.starts_at).slice(0, 10) : utcToStockholm(e.starts_at),
-          end: e.ends_at ? utcToStockholm(e.ends_at) : null,
-          all_day: e.all_day,
-          location: e.location,
-          notes: e.notes,
-          responsible: name(e.responsible_member_id),
-          for_whom: name(e.for_member_id),
-        })),
-      );
+      const out = [];
+      for (const e of events ?? []) {
+        const local = utcToStockholm(e.starts_at); // "YYYY-MM-DD HH:MM"
+        const [baseDate, time] = local.split(" ");
+        const duration = e.ends_at ? new Date(e.ends_at).getTime() - new Date(e.starts_at).getTime() : null;
+        for (const d of occurrenceDates(baseDate, e.recurrence as Recurrence | null, e.recurrence_until, fromYmd, toYmd)) {
+          const occ = stockholmToUtc(`${d}T${time}`);
+          out.push({
+            id: e.id,
+            title: e.title,
+            start: e.all_day ? d : `${d} ${time}`,
+            end: duration !== null ? utcToStockholm(new Date(new Date(occ).getTime() + duration).toISOString()) : null,
+            all_day: e.all_day,
+            repeats: e.recurrence,
+            repeat_until: e.recurrence_until,
+            location: e.location,
+            notes: e.notes,
+            responsible: name(e.responsible_member_id),
+            for_whom: name(e.for_member_id),
+            _sort: occ,
+          });
+        }
+      }
+      out.sort((a, b) => a._sort.localeCompare(b._sort));
+      return text(out.map((o) => ({ ...o, _sort: undefined })));
     },
   );
 
@@ -165,14 +211,14 @@ export function registerTools(server: McpServer) {
     "add_event",
     {
       title: "Add a calendar event",
-      description: "Add an event to the family calendar, e.g. 'Jenny picks up Charlie Thursday 16:00'.",
+      description: "Add an event to the family calendar, e.g. 'Jenny picks up Charlie Thursday 16:00'. Use repeats for routines (e.g. daily preschool drop-off: weekdays).",
       inputSchema: z.object({ ...eventFields, title: z.string().min(1), start: z.string() }),
     },
     async (e) => {
       const row = await eventRow(e);
       const { data, error } = await createAdminClient()
         .from("events")
-        .insert({ ...row, family_id: familyId() })
+        .insert({ ...row, family_id: familyId(), created_by: createdBy() })
         .select("id")
         .single();
       if (error) throw new Error(error.message);
@@ -184,7 +230,7 @@ export function registerTools(server: McpServer) {
     "update_event",
     {
       title: "Update a calendar event",
-      description: "Change an existing event (time, person responsible, place...). Get the id from get_events. Only pass fields to change.",
+      description: "Change an existing event (time, person responsible, place, repetition...). Get the id from get_events. Only pass fields to change. For a repeating event this changes the whole series.",
       inputSchema: z.object({ id: z.string().uuid(), ...eventFields }),
     },
     async ({ id, ...e }) => {
@@ -207,7 +253,7 @@ export function registerTools(server: McpServer) {
     "delete_event",
     {
       title: "Delete a calendar event",
-      description: "Remove an event. Only when the user explicitly asks to delete or cancel it.",
+      description: "Remove an event (for a repeating event: the whole series). Only when the user explicitly asks to delete or cancel it.",
       inputSchema: z.object({ id: z.string().uuid() }),
     },
     async ({ id }) => {
@@ -236,11 +282,14 @@ export function registerTools(server: McpServer) {
     },
     async ({ list, include_done }) => {
       const l = await resolveList(list);
-      let q = createAdminClient().from("list_items").select("title, quantity, done, due_date").eq("list_id", l.id).order("created_at");
+      let q = createAdminClient().from("list_items").select("title, quantity, notes, done, due_date, category").eq("list_id", l.id).order("created_at");
       if (!include_done) q = q.eq("done", false);
       const { data, error } = await q;
       if (error) throw new Error(error.message);
-      return text({ list: l.name, items: data });
+      const items = (data ?? [])
+        .sort((a, b) => categoryOrder(a.category) - categoryOrder(b.category))
+        .map(({ category, ...i }) => ({ ...i, aisle: l.kind === "grocery" ? categoryById(category).label : undefined }));
+      return text({ list: l.name, items });
     },
   );
 
@@ -263,7 +312,18 @@ export function registerTools(server: McpServer) {
       if (fresh.length) {
         const { error } = await db
           .from("list_items")
-          .insert(fresh.map((i) => ({ family_id: familyId(), list_id: l.id, title: i.title.trim(), quantity: i.quantity ?? null })));
+          .insert(
+            await Promise.all(
+              fresh.map(async (i) => ({
+                family_id: familyId(),
+                list_id: l.id,
+                title: i.title.trim(),
+                quantity: i.quantity ?? null,
+                category: l.kind === "grocery" ? await categoryFor(i.title) : null,
+                created_by: createdBy(),
+              })),
+            ),
+          );
         if (error) throw new Error(error.message);
       }
       const skipped = items.filter((i) => !fresh.includes(i)).map((i) => i.title);
@@ -318,6 +378,7 @@ export function registerTools(server: McpServer) {
             item_name: i.title.trim(),
             quantity: i.quantity ?? null,
             source: "manual",
+            created_by: createdBy(),
             ...(purchased_at ? { purchased_at } : {}),
           })),
         );
@@ -395,7 +456,7 @@ export function registerTools(server: McpServer) {
     async (r) => {
       const { error } = await createAdminClient()
         .from("recipes")
-        .insert({ ...r, tags: (r.tags ?? []).map((t) => t.toLowerCase()), family_id: familyId() });
+        .insert({ ...r, tags: (r.tags ?? []).map((t) => t.toLowerCase()), family_id: familyId(), created_by: createdBy() });
       if (error) throw new Error(error.message);
       return text(`Saved recipe "${r.title}".`);
     },
@@ -436,9 +497,111 @@ export function registerTools(server: McpServer) {
     async (n) => {
       const { error } = await createAdminClient()
         .from("notes")
-        .insert({ ...n, tags: (n.tags ?? []).map((t) => t.toLowerCase()), family_id: familyId() });
+        .insert({ ...n, tags: (n.tags ?? []).map((t) => t.toLowerCase()), family_id: familyId(), created_by: createdBy() });
       if (error) throw new Error(error.message);
       return text(`Saved note "${n.title}".`);
+    },
+  );
+
+  server.registerTool(
+    "dinner_ideas",
+    {
+      title: "Dinner ideas",
+      description:
+        "Recipes to suggest for a meal, ranked by favourites, kid-friendliness and how many ingredients were bought in the last 10 days or are already on the shopping list.",
+      inputSchema: z.object({
+        max_minutes: z.number().int().optional().describe("Only recipes that take at most this long"),
+        kid_friendly_only: z.boolean().optional(),
+      }),
+    },
+    async ({ max_minutes, kid_friendly_only }) => {
+      const db = createAdminClient();
+      const since = new Date(Date.now() - 10 * 86400000).toISOString();
+      const [{ data: recipes, error }, { data: bought }, { data: listed }] = await Promise.all([
+        db.from("recipes").select("title, description, ingredients, tags, prep_minutes, favorite, kid_friendly").eq("family_id", familyId()),
+        db.from("purchases").select("item_key").eq("family_id", familyId()).gte("purchased_at", since),
+        db.from("list_items").select("title").eq("family_id", familyId()).eq("done", false),
+      ]);
+      if (error) throw new Error(error.message);
+      const have = new Set([...(bought ?? []).map((b) => b.item_key), ...(listed ?? []).map((l) => l.title.trim().toLowerCase())]);
+      const matches = (ingredient: string) => [...have].some((h) => h.length > 2 && ingredient.toLowerCase().includes(h));
+      const ranked = (recipes ?? [])
+        .filter((r) => (!max_minutes || !r.prep_minutes || r.prep_minutes <= max_minutes) && (!kid_friendly_only || r.kid_friendly))
+        .map((r) => {
+          const inHand = r.ingredients.filter(matches);
+          return {
+            ...r,
+            ingredients_in_hand: inHand,
+            ingredients_missing: r.ingredients.filter((i: string) => !matches(i)),
+            score: (r.favorite ? 3 : 0) + (r.kid_friendly ? 1 : 0) + inHand.length,
+          };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 8);
+      if (!ranked.length) return text("No recipes saved yet. Suggest ideas from general knowledge and offer to save the ones they like with add_recipe.");
+      return text(ranked);
+    },
+  );
+
+  server.registerTool(
+    "log_receipt",
+    {
+      title: "Log a receipt",
+      description:
+        "Record everything bought on a receipt (read from a photo). Logs each line as a purchase (with store and price) and checks off matching items on the shopping lists.",
+      inputSchema: z.object({
+        store: z.string().optional().describe("e.g. ICA Maxi Lindhagen"),
+        date: z.string().optional().describe("Purchase date YYYY-MM-DD (Stockholm); default today"),
+        items: z
+          .array(
+            z.object({
+              name: z.string().min(1).describe("Normalized item name the family uses, e.g. 'Milk' (not 'MELLANMJ 1,5%')"),
+              quantity: z.string().optional(),
+              price: z.number().optional().describe("Line total in SEK"),
+            }),
+          )
+          .min(1),
+      }),
+    },
+    async ({ store, date, items }) => {
+      const db = createAdminClient();
+      const purchasedAt = date ? stockholmToUtc(`${date}T12:00`) : new Date().toISOString();
+      // Log purchases first: the check-off trigger then skips its own duplicate.
+      const { error } = await db.from("purchases").insert(
+        items.map((i) => ({
+          family_id: familyId(),
+          item_name: i.name.trim(),
+          quantity: i.quantity ?? null,
+          price: i.price ?? null,
+          store: store ?? null,
+          source: "receipt",
+          purchased_at: purchasedAt,
+          created_by: createdBy(),
+        })),
+      );
+      if (error) throw new Error(error.message);
+
+      const { data: open } = await db
+        .from("list_items")
+        .select("id, title, lists!inner(kind)")
+        .eq("family_id", familyId())
+        .eq("done", false)
+        .eq("lists.kind", "grocery");
+      const names = items.map((i) => i.name.trim().toLowerCase());
+      const hits = (open ?? []).filter((o) => {
+        const t = o.title.trim().toLowerCase();
+        return names.some((n) => n === t || (t.length > 2 && n.includes(t)) || (n.length > 2 && t.includes(n)));
+      });
+      if (hits.length) {
+        await db.from("list_items").update({ done: true, done_at: new Date().toISOString() }).in("id", hits.map((h) => h.id));
+      }
+      const total = items.reduce((s, i) => s + (i.price ?? 0), 0);
+      return text({
+        logged: items.length,
+        store: store ?? null,
+        total_sek: total ? Math.round(total * 100) / 100 : null,
+        checked_off_from_list: hits.map((h) => h.title),
+      });
     },
   );
 }

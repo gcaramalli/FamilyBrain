@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Who is calling the connector, resolved from their personal link.
-export type McpContext = { familyId: string; familyName: string | null; speaker: string | null };
+export type McpContext = { familyId: string; familyName: string | null; speaker: string | null; profileId: string | null };
 
 export const mcpContext = new AsyncLocalStorage<McpContext>();
 
@@ -27,16 +27,16 @@ export async function resolveToken(token: string | null | undefined): Promise<Mc
   const db = createAdminClient();
   const { data } = await db
     .from("connector_tokens")
-    .select("id, profiles!inner(display_name, family_id, families!inner(name))")
+    .select("id, profile_id, profiles!inner(display_name, family_id, families!inner(name))")
     .eq("token_hash", sha256(token))
     .maybeSingle();
   if (data) {
     const profile = data.profiles as unknown as { display_name: string; family_id: string; families: { name: string } };
     await db.from("connector_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", data.id);
-    return { familyId: profile.family_id, familyName: profile.families.name, speaker: profile.display_name || null };
+    return { familyId: profile.family_id, familyName: profile.families.name, speaker: profile.display_name || null, profileId: data.profile_id };
   }
   if (legacyTokenMatches(token) && process.env.FAMILY_ID) {
-    return { familyId: process.env.FAMILY_ID, familyName: null, speaker: null };
+    return { familyId: process.env.FAMILY_ID, familyName: null, speaker: null, profileId: null };
   }
   return null;
 }

@@ -34,7 +34,13 @@ export type CalendarEvent = {
   notes: string | null;
   responsible_member_id: string | null;
   for_member_id: string | null;
+  recurrence: "daily" | "weekdays" | "weekly" | "biweekly" | "monthly" | null;
+  recurrence_until: string | null;
+  created_by?: string | null;
 };
+
+// One occurrence of an event (a repeating event yields several).
+export type EventOccurrence = CalendarEvent & { key: string; occurrence_start: string; occurrence_end: string | null };
 
 export type List = { id: string; name: string; kind: "grocery" | "todo"; position: number };
 
@@ -48,6 +54,8 @@ export type ListItem = {
   done_at: string | null;
   due_date: string | null;
   assignee_member_id: string | null;
+  category: string | null;
+  created_by: string | null;
   created_at: string;
 };
 

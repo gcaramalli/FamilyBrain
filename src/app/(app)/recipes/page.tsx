@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
+import { guessCategory } from "@/lib/categories";
 import type { Recipe } from "@/lib/types";
 
 type Draft = Omit<Recipe, "id"> & { id?: string };
@@ -129,7 +130,7 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
   async function addToGroceries() {
     const { data: list } = await supabase.from("lists").select("id").eq("kind", "grocery").order("position").limit(1).single();
     if (!list) return alert("Create a shopping list first.");
-    await supabase.from("list_items").insert(recipe.ingredients.map((title) => ({ list_id: list.id, title, notes: `for ${recipe.title}` })));
+    await supabase.from("list_items").insert(recipe.ingredients.map((title) => ({ list_id: list.id, title, notes: `for ${recipe.title}`, category: guessCategory(title) })));
     setAdded(true);
   }
 
