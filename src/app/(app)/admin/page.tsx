@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
+  const [inviteMember, setInviteMember] = useState<string>("");
   const [bought, setBought] = useState("");
 
   const load = useCallback(async () => {
@@ -55,11 +56,12 @@ export default function AdminPage() {
     e.preventDefault();
     const { data, error } = await supabase
       .from("invites")
-      .insert({ email: inviteEmail.trim().toLowerCase(), family_id: family.id, role: inviteRole })
+      .insert({ email: inviteEmail.trim().toLowerCase(), family_id: family.id, role: inviteRole, member_id: inviteMember || null })
       .select()
       .single<Invite>();
     if (error) return alert(error.message);
     setInviteEmail("");
+    setInviteMember("");
     await load();
     if (data) shareInvite(data);
   }
@@ -155,16 +157,25 @@ export default function AdminPage() {
             </li>
           ))}
         </ul>
-        <form onSubmit={invite} className="flex gap-2">
+        <form onSubmit={invite} className="flex flex-col gap-2">
           <input className="input" type="email" required placeholder="Their email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
-          <select className="rounded-xl border border-border bg-surface px-2" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "member" | "admin")}>
-            <option value="member">member</option>
-            <option value="admin">admin</option>
-          </select>
+          <div className="flex gap-2">
+            <select className="input" value={inviteMember} onChange={(e) => setInviteMember(e.target.value)}>
+              <option value="">New person</option>
+              {members.filter((m) => !m.profile_id).map((m) => (
+                <option key={m.id} value={m.id}>For {m.emoji} {m.name}</option>
+              ))}
+            </select>
+            <select className="input w-32" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "member" | "admin")}>
+              <option value="member">member</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
           <button className="btn">Invite</button>
         </form>
         <p className="text-xs text-muted">
-          Creates a private link to send by SMS or WhatsApp. Whoever opens it can join this family, so only send it to the right person. Valid 14 days, single use.
+          Two ways for them to join: send the private link (SMS/WhatsApp; single use, 14 days), or create their account
+          yourself in Supabase → Authentication → Users → Add user with this same email. Either way they land in this family.
         </p>
       </section>
 

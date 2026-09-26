@@ -56,6 +56,9 @@ domain is set up).
    *Groceries* and a *To-do* list.
 2. Admin → **Invite**: enter their email and role → the phone's share sheet opens with a private link
    (`/signup?invite=…`, single use, 14 days). Send it by SMS/WhatsApp.
+   Or create their account yourself in Supabase → Authentication → Users → **Add user** with the invited
+   email: accounts created there carry no sign-up data, so they join the family that invited that email.
+   Pick "For <member>" on the invite to link the account to an existing member card.
 3. They open the link, enter first name, email and password, and land in your family. If an admin already
    created a member with the same first name, that member is linked to the new account.
 4. Admin → **+ Person** for people without an account (kids).
