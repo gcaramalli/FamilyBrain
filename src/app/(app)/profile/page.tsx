@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ClaudeConnector } from "@/components/claude-connector";
 import { useFamily } from "@/components/family-context";
 
 const COLORS = ["#4f46e5", "#db2777", "#059669", "#d97706", "#0891b2", "#7c3aed", "#dc2626", "#475569"];
@@ -86,6 +87,8 @@ export default function ProfilePage() {
         <button className="btn">Change password</button>
         {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
+
+      <ClaudeConnector />
 
       <section className="card text-sm">
         <h2 className="h2 mb-2">📱 Put it on your home screen</h2>

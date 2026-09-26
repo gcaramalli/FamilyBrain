@@ -2,29 +2,37 @@ import "server-only";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { mcpContext, type McpContext } from "./context";
 import { stockholmToUtc, utcToStockholm } from "./time";
 
 // Tools exposed to Claude through the family connector. Every query is
-// scoped to FAMILY_ID because the service-role client bypasses RLS.
+// scoped to the caller's family (see ./context.ts) because the service-role
+// client bypasses RLS.
 
-export const instructions = `Hembrain for Guillaume, Jenny and their son Charlie (Sweden, Europe/Stockholm time).
+export function buildInstructions(ctx: McpContext) {
+  const who = ctx.speaker
+    ? `The person talking to you is ${ctx.speaker}${ctx.familyName ? ` (family "${ctx.familyName}")` : ""}. "I" / "me" = ${ctx.speaker}.`
+    : "Ask who is talking if it matters (e.g. for who is responsible).";
+  return `Hembrain: a family's shared calendar, lists, recipes and notes. Times are Europe/Stockholm unless told otherwise.
+${who}
 Routing:
-- Calendar (appointments, who drops off / picks up Charlie, trips, birthdays): get_events / add_event / update_event / delete_event.
-  Pass times as local Stockholm time (YYYY-MM-DDTHH:MM). Set "responsible" (who does it) and "for_whom" (who it is about) by first name.
+- Calendar (appointments, who drops off / picks up the kids, trips, birthdays): get_events / add_event / update_event / delete_event.
+  Pass times as local time (YYYY-MM-DDTHH:MM). Set "responsible" (who does it) and "for_whom" (who it is about) by first name.
   Check get_events for that day first to avoid duplicates. Only delete when explicitly asked.
 - Shopping and to-dos: add_to_list / check_off / get_list. Default list is the first shopping list.
 - "We bought X" outside the list: log_purchase (feeds the "running out soon" prediction).
 - Recipes: search_recipes / add_recipe. Family facts (pickup rules, allergies, contacts): get_notes / add_note.
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
+}
 
 const text = (value: unknown) => ({
   content: [{ type: "text" as const, text: typeof value === "string" ? value : JSON.stringify(value, null, 2) }],
 });
 
 function familyId() {
-  const id = process.env.FAMILY_ID;
-  if (!id) throw new Error("FAMILY_ID is not set");
-  return id;
+  const ctx = mcpContext.getStore();
+  if (!ctx) throw new Error("No family context for this request");
+  return ctx.familyId;
 }
 
 async function resolveList(name?: string) {

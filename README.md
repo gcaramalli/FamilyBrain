@@ -69,7 +69,7 @@ proves nothing. Each family only ever sees its own data (RLS on `family_id`).
 
 ## Using it from Claude
 
-The app exposes a **Claude connector** (MCP) at `/api/mcp` (bearer token header) with 14 tools: calendar, lists,
+The app exposes a **Claude connector** (MCP) with 14 tools; each person creates a personal link in Profile → Connect Claude. Tools cover: calendar, lists,
 check-off, purchases, restock suggestions, recipes, notes. Setup (env vars, adding the connector, the "Famille" project prompt):
 [`docs/claude-setup.md`](docs/claude-setup.md).
 

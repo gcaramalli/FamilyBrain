@@ -6,7 +6,7 @@ Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0004 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0005 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -67,7 +67,10 @@ Rules of thumb:
 - Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`)
 - Pages under `src/app/(app)` are client components talking to Supabase directly (RLS is the security
   boundary). New tables need RLS + a `family all` policy like the existing ones.
-- `src/app/api/mcp/route.ts` (Authorization: Bearer header; `[token]/` = legacy secret-in-URL) is the Claude connector (mcp-handler + MCP SDK v2). It uses the
-  service-role client (`src/lib/supabase/admin.ts`, bypasses RLS), so every query in `src/lib/mcp/tools.ts`
-  must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY`, `FAMILY_ID`, `MCP_TOKEN`.
+- Claude connector (mcp-handler + MCP SDK v2): `src/app/api/mcp/[token]/route.ts` (personal link) and
+  `src/app/api/mcp/route.ts` (Bearer header). Tokens live hashed in `connector_tokens` (created in Profile →
+  Connect Claude); `src/lib/mcp/context.ts` resolves token → family + speaker into an AsyncLocalStorage.
+  It uses the service-role client (`src/lib/supabase/admin.ts`, bypasses RLS), so every query in
+  `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
+  `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.

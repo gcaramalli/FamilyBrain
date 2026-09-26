@@ -1,13 +1,10 @@
-import { mcp, tokenMatches } from "@/lib/mcp/handler";
+import { serveMcp } from "@/lib/mcp/handler";
 
-// Claude connector. Preferred setup: URL /api/mcp with the request header
-// "Authorization: Bearer <MCP_TOKEN>" (stored by Claude, never shown again),
-// so the URL itself holds no secret.
+// Claude connector with the secret in a header: "Authorization: Bearer <token>"
+// (Claude Code). The Claude app uses /api/mcp/<token> instead.
 async function handler(request: Request) {
-  const auth = request.headers.get("authorization");
-  const token = auth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
-  if (!tokenMatches(token)) return new Response("Unauthorized", { status: 401 });
-  return mcp(request);
+  const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  return (await serveMcp(request, token)) ?? new Response("Unauthorized", { status: 401 });
 }
 
 export { handler as GET, handler as POST, handler as DELETE };

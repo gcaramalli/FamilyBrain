@@ -1,62 +1,39 @@
 # Using Hembrain from the Claude app
 
-Talk to Claude ("add nappies and milk", "we bought toothpaste", "what can we cook tonight?") and it
-writes into the app: calendar, lists, recipes and notes.
+Talk to Claude ("add nappies and milk", "Jennie picks up Charlie Thursday at 16:00", "what can we cook
+tonight?") and it writes into the app: calendar, lists, recipes and notes.
 
-## 1. Server settings (once, in Vercel → Project → Settings → Environment Variables)
+## How it works
 
-| Variable | Where to find it |
-|---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` / secret key. **Server-only**: never prefix with `NEXT_PUBLIC_`. |
-| `FAMILY_ID` | Supabase SQL editor: `select id, name from families;` |
-| `MCP_TOKEN` | A long random string: `openssl rand -hex 32` (at least 24 characters, otherwise the connector stays disabled) |
+The app exposes an MCP connector: 14 tools (get_events, add_event, add_to_list, check_off, log_purchase,
+search_recipes, get_notes…). Claude calls them when you ask for something; it never browses the site and
+does nothing on its own unless you set up a scheduled routine.
 
-Redeploy after adding them.
+Each person has their **own link**, created in the app: it tells the connector who is talking and which
+family to use. Nothing to configure in Vercel.
 
-Connector URL: `https://hembrain.vercel.app/api/mcp` (no secret in it).
-The secret goes in a request header: `Authorization` = `Bearer <MCP_TOKEN>`.
+## Set up (each person, once)
 
-⚠️ `MCP_TOKEN` works like a password: anyone who has it can read and write your lists, recipes and notes
-(not the calendar, not accounts). Never paste it in chats or screenshots. If it leaks, generate a new one,
-update `MCP_TOKEN` in Vercel, redeploy, and update the header in each Claude account.
+1. In the app: **Profile → Connect Claude → + Create a Claude link** → copy the link (shown only once).
+2. In Claude (app or claude.ai): **Settings → Connectors → Add custom connector**
+   - Name: `Hembrain`
+   - URL: paste the link
+   - Authentication: **None**, no headers
+3. Test in a new conversation: "What's on the calendar this week?"
 
-(Legacy: `/api/mcp/<MCP_TOKEN>` still works but puts the secret in the URL — avoid.)
+⚠️ The link works like a password (it acts as you, in your family). Paste it only into Claude — never in a
+chat, note or screenshot. If it leaks: Profile → Connect Claude → **Revoke**, then create a new one.
 
-## 2. Add the connector (each of you, in your own Claude account)
-
-Claude app / claude.ai → Settings → Connectors → **Add custom connector** → name "Hembrain",
-URL above, Authentication **None**, then **Add header**: name `Authorization`, value `Bearer <MCP_TOKEN>`.
-
-## 3. Create a "Famille" project in Claude
-
-Claude → Projects → New project → "Famille" → paste this into the project instructions:
-
-```
-You are our family assistant (Guillaume, Jenny and our son Charlie, in Sweden — times are
-Europe/Stockholm). Route every request:
-
-- Calendar (appointments, who drops off / picks up Charlie, trips, birthdays):
-  Hembrain → get_events / add_event / update_event (delete_event only if asked).
-  Set responsible (who does it) and for_whom (who it's about). Use the förskola address
-  from Hembrain notes when relevant.
-- Shopping and to-dos: Hembrain → add_to_list (default = shopping list), check_off, get_list.
-- "We bought X" without it being on the list: Hembrain → log_purchase.
-- Recipes and meal ideas: Hembrain → search_recipes / add_recipe. Prefer favourites and
-  kid-friendly recipes; to cook one, add its missing ingredients with add_to_list.
-- Facts worth remembering (addresses, rules, allergies, contacts): Hembrain → add_note / get_notes.
-
-For photos (school planning, emails, receipts): extract everything, then create all events/items.
-One message can contain several requests: handle each one.
-Always finish with a short summary of exactly what you added and where. If a date or person is
-ambiguous, ask before writing.
-```
-
-Start family conversations inside this project so the routing rules apply.
+Optional: a Claude project with extra instructions ("prefer kid-friendly recipes", "our preschool is …").
+The connector already tells Claude who you are and how to route requests.
 
 ## Claude Code
 
-Claude Code can use the same connector:
-
 ```bash
-claude mcp add --transport http hembrain https://hembrain.vercel.app/api/mcp --header "Authorization: Bearer <MCP_TOKEN>"
+claude mcp add --transport http hembrain https://hembrain.vercel.app/api/mcp --header "Authorization: Bearer <token>"
 ```
+(`<token>` = the part of your link after `/api/mcp/`.)
+
+## Legacy
+
+`MCP_TOKEN` + `FAMILY_ID` env vars in Vercel still work for one family (no speaker). Prefer personal links.
