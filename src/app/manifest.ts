@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Caramalli Family Brain",
-    short_name: "Family Brain",
+    name: "Hembrain",
+    short_name: "Hembrain",
     description: "Shared calendar, lists, recipes and family memory.",
     start_url: "/",
     display: "standalone",

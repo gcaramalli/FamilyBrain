@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Caramalli Family Brain — notes for Claude
+# Hembrain — notes for Claude
 
 Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby/toddler, no account).
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
@@ -10,7 +10,7 @@ Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny'
 
 ## Adding things for the family
 
-Preferred: the **Family Brain connector** (`/api/mcp` + bearer header, tools in `src/lib/mcp/tools.ts`) for
+Preferred: the **Hembrain connector** (`/api/mcp` + bearer header, tools in `src/lib/mcp/tools.ts`) for
 the calendar, lists, purchases, recipes and notes (event times are passed as local Stockholm time, see `src/lib/mcp/time.ts`).
 Setup and routing prompt: `docs/claude-setup.md`.
 

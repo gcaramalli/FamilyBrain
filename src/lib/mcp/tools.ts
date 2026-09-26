@@ -7,7 +7,7 @@ import { stockholmToUtc, utcToStockholm } from "./time";
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to FAMILY_ID because the service-role client bypasses RLS.
 
-export const instructions = `Family Brain for Guillaume, Jenny and their son Charlie (Sweden, Europe/Stockholm time).
+export const instructions = `Hembrain for Guillaume, Jenny and their son Charlie (Sweden, Europe/Stockholm time).
 Routing:
 - Calendar (appointments, who drops off / picks up Charlie, trips, birthdays): get_events / add_event / update_event / delete_event.
   Pass times as local Stockholm time (YYYY-MM-DDTHH:MM). Set "responsible" (who does it) and "for_whom" (who it is about) by first name.

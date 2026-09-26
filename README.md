@@ -1,4 +1,4 @@
-# Caramalli Family Brain 🏡
+# Hembrain 🏡
 
 Shared family app for Guillaume, Jenny and Charlie: **calendar**, **shared lists** (groceries, to-dos),
 **recipes**, and a **family brain** (notes: pickup rules, allergies, contacts…). Works on both phones as

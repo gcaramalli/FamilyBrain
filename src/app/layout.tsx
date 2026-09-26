@@ -8,9 +8,9 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Family Brain",
+  title: "Hembrain",
   description: "The Caramalli family's shared calendar, lists, recipes and memory.",
-  appleWebApp: { capable: true, title: "Family Brain", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Hembrain", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

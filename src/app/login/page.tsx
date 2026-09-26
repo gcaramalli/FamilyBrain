@@ -69,7 +69,7 @@ export default function LoginPage() {
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 px-6">
       <div>
         <div className="text-4xl">🏡</div>
-        <h1 className="h1 mt-2">Family Brain</h1>
+        <h1 className="h1 mt-2">Hembrain</h1>
         <p className="text-muted">Calendar, lists, recipes and everything we need to remember.</p>
       </div>
 
