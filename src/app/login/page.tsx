@@ -7,7 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 // Email + 6-digit code instead of a magic link: on iPhone, a link opens in
 // Safari, not in the home-screen app, so the app would stay signed out.
 export default function LoginPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -19,7 +18,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await createClient().auth.signInWithOtp({
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
@@ -32,7 +31,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
+    const { error } = await createClient().auth.verifyOtp({ email, token: code.trim(), type: "email" });
     setBusy(false);
     if (error) setError(error.message);
     else {
