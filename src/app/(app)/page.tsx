@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { EventRow } from "@/components/event-row";
+import { SendGift } from "@/components/send-gift";
 import { addDays, dayKey, daysUntil, startOfDay } from "@/lib/dates";
 import { fetchOccurrences } from "@/lib/events";
 import type { EventOccurrence, Recipe, RestockSuggestion } from "@/lib/types";
@@ -67,6 +68,8 @@ export default function TodayPage() {
           <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} />)}</div>
         </section>
       )}
+
+      <SendGift />
 
       <Link href="/recipes" className="card flex items-center justify-between">
         <div>

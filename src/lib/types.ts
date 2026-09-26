@@ -90,3 +90,13 @@ export type Note = {
   pinned: boolean;
   updated_at: string;
 };
+
+export type Gift = {
+  id: string;
+  from_profile: string;
+  to_profile: string;
+  emoji: string;
+  message: string | null;
+  created_at: string;
+  opened_at: string | null;
+};

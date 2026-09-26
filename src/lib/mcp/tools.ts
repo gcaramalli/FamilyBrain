@@ -28,6 +28,7 @@ Routing:
 - Receipt photo: read every line, then log_receipt with store, date and items. Use the family's usual item
   names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
+- "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -602,6 +603,35 @@ export function registerTools(server: McpServer) {
         total_sek: total ? Math.round(total * 100) / 100 : null,
         checked_off_from_list: hits.map((h) => h.title),
       });
+    },
+  );
+
+  server.registerTool(
+    "send_gift",
+    {
+      title: "Send a little gift",
+      description: "Send a family member a small gift (emoji + optional note) that they unwrap next time they open the app.",
+      inputSchema: z.object({
+        to: z.string().describe("First name of the family member with an account, e.g. 'Jennie'"),
+        emoji: z.string().max(16).optional().describe("Default ❤️"),
+        message: z.string().max(140).optional(),
+      }),
+    },
+    async ({ to, emoji, message }) => {
+      const from = createdBy();
+      if (!from) throw new Error("Gifts need a personal connector link (Profile → Connect Claude) so we know who sends it.");
+      const db = createAdminClient();
+      const { data: people } = await db.from("profiles").select("id, display_name").eq("family_id", familyId());
+      const n = to.trim().toLowerCase();
+      const target =
+        (people ?? []).find((p) => p.display_name.toLowerCase() === n) ?? (people ?? []).find((p) => p.display_name.toLowerCase().startsWith(n));
+      if (!target) throw new Error(`No account named "${to}". People with an account: ${(people ?? []).map((p) => p.display_name).join(", ")}`);
+      if (target.id === from) throw new Error("You can't send a gift to yourself.");
+      const { error } = await db
+        .from("gifts")
+        .insert({ family_id: familyId(), from_profile: from, to_profile: target.id, emoji: emoji || "❤️", message: message?.trim() || null });
+      if (error) throw new Error(error.message);
+      return text(`Sent ${emoji || "❤️"} to ${target.display_name}. They'll unwrap it next time they open Hembrain.`);
     },
   );
 }

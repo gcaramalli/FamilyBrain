@@ -44,6 +44,7 @@ Priorities as of 2026-09-26. Build one batch at a time.
 - Kivra: no public API for private users as far as we know — not planned
 
 ## Done
+- [x] Little gifts between family members ("à toi, à moi"): send an emoji + note, unwrapped on next open; also via Claude (`send_gift`)
 - [x] Shared calendar, lists, recipes, notes, admin, profile (PWA)
 - [x] Supabase schema with per-family RLS, restock prediction view
 - [x] Password sign-in, multi-family sign-up, private invite links, dashboard-created accounts join the inviting family
