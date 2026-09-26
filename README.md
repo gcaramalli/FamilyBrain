@@ -44,7 +44,7 @@ npm run dev
 
 ### 3. Vercel
 1. Import this GitHub repo on [vercel.com/new](https://vercel.com/new).
-2. Add the env vars `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+2. The public Supabase URL and key default to the family project (`src/lib/supabase/config.ts`); env vars `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` override them.
 3. Deploy, then put the URL in Supabase *Site URL* (step 1.4).
 
 ### 4. Family onboarding
