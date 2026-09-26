@@ -128,7 +128,7 @@ export default function CalendarPage() {
                 setFocus(null);
                 setMode(m);
               }}
-              className={`rounded-lg px-3 py-1 capitalize ${mode === m ? "bg-accent text-white" : ""}`}
+              className={`rounded-lg px-3 py-1 capitalize ${mode === m ? "bg-accent text-on-accent" : ""}`}
             >
               {m === "month" ? t("Month") : m === "week" ? t("Week") : t("Agenda")}
             </button>
@@ -182,7 +182,7 @@ export default function CalendarPage() {
                   className={`flex min-h-16 flex-col items-center gap-1 border-b border-r border-border px-0.5 py-1 active:bg-accent-soft ${inMonth ? "" : "opacity-40"}`}
                 >
                   <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full text-sm ${k === todayKey ? "bg-accent font-semibold text-white" : ""}`}
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-sm ${k === todayKey ? "bg-accent font-semibold text-on-accent" : ""}`}
                   >
                     {d.getDate()}
                   </span>

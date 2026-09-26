@@ -1,14 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f6f3;
+  /* The interface stays ink-on-paper; colour belongs to the people
+     (each member's colour marks what they do). */
+  --background: #f6f5f1;
   --surface: #ffffff;
-  --foreground: #1c1b19;
-  --muted: #6b6860;
-  --border: #e6e3dc;
-  --accent: #4f46e5;
-  --accent-soft: #eef0ff;
-  --danger: #dc2626;
+  --foreground: #1d1c1a;
+  --muted: #69665e;
+  --border: #e4e1da;
+  --accent: #1d1c1a;
+  --on-accent: #ffffff;
+  --accent-soft: #eeece6;
+  --danger: #c2261d;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,8 +21,9 @@
     --foreground: #eeece7;
     --muted: #a19e95;
     --border: #2e2d2a;
-    --accent: #8b87ff;
-    --accent-soft: #25244a;
+    --accent: #eeece7;
+    --on-accent: #121211;
+    --accent-soft: #2a2926;
     --danger: #f87171;
   }
 }
@@ -31,6 +35,7 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
@@ -41,6 +46,11 @@ body {
   color: var(--foreground);
 }
 
+:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border border-border bg-surface p-4;
@@ -49,16 +59,16 @@ body {
     @apply w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-base outline-none focus:border-accent;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-medium text-white active:opacity-80 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-medium text-on-accent active:opacity-80 disabled:opacity-50;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-sm active:opacity-70;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm active:opacity-70 disabled:opacity-50;
   }
   .label {
     @apply mb-1 block text-sm text-muted;
   }
   .h1 {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-[1.75rem] leading-tight font-semibold tracking-tight text-balance;
   }
   .h2 {
     @apply text-lg font-semibold;
@@ -70,7 +80,7 @@ body {
     @apply border-foreground bg-foreground text-background;
   }
   .chip {
-    @apply inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent;
+    @apply inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs text-foreground;
   }
 }
 

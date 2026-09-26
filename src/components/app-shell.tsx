@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { useFamily } from "./family-context";
 import { GiftInbox } from "./gift-inbox";
 import { ToastProvider } from "./toast";
@@ -9,6 +10,10 @@ import { ToastProvider } from "./toast";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { profile, family, kids, me, t } = useFamily();
+  // Service worker: needed for reminders (push notifications).
+  useEffect(() => {
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   // The Kids tab only shows up for families with a child.

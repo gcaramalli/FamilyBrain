@@ -20,7 +20,8 @@ export default function TodayPage() {
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
-    setEvents(await fetchOccurrences(supabase, today, addDays(today, 2)));
+    // A week ahead: the kids' card shows the next preschool day, even after a weekend.
+    setEvents(await fetchOccurrences(supabase, today, addDays(today, 8)));
   }, [supabase]);
 
   useEffect(() => {
@@ -121,12 +122,17 @@ export default function TodayPage() {
   );
 }
 
-// "Charlie · today: drop-off Guillaume 08:00, pick-up ? 16:00", then tomorrow.
+// "Charlie · today: drop-off Guillaume 08:00, pick-up ? 16:00", then the
+// next preschool day (tomorrow, or Monday after a weekend).
 function KidCard({ kid, events, onChanged }: { kid: Member; events: EventOccurrence[]; onChanged: () => void }) {
   const { t } = useFamily();
+  const hasCare = (d: Date) => isCareDay(kid, d) || CARE_KINDS.some((kind) => findSlot(events, kid, dayKey(d), kind));
+  const next = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1)).find(hasCare);
   const days = [
     { label: t("Today"), date: new Date() },
-    { label: t("Tomorrow"), date: addDays(new Date(), 1) },
+    ...(next
+      ? [{ label: dayKey(next) === dayKey(addDays(new Date(), 1)) ? t("Tomorrow") : fmtDate(next, { weekday: "long" }), date: next }]
+      : []),
   ];
   return (
     <section className="flex flex-col gap-3 rounded-2xl p-4" style={{ background: `color-mix(in srgb, ${kid.color} 10%, var(--surface))` }}>
@@ -139,15 +145,14 @@ function KidCard({ kid, events, onChanged }: { kid: Member; events: EventOccurre
         const planned = CARE_KINDS.map((kind) => findSlot(events, kid, k, kind));
         if (!isCareDay(kid, date) && !planned.some(Boolean)) {
           return (
-            <div key={k} className="flex items-center gap-3">
-              <span className="w-20 shrink-0 text-sm font-medium">{label}</span>
-              <span className="text-sm text-muted">{t("No preschool")}</span>
-            </div>
+            <p key={k} className="text-sm">
+              <span className="font-medium">{label}</span> <span className="text-muted">· {t("No preschool")}</span>
+            </p>
           );
         }
         return (
           <div key={k} className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">{label}</span>
+            <span className="text-sm font-medium capitalize">{label}</span>
             <div className="grid grid-cols-2 gap-2">
               {CARE_KINDS.map((kind, i) => (
                 <CareSlot key={kind} kid={kid} day={k} kind={kind} event={planned[i]} onChanged={onChanged} />

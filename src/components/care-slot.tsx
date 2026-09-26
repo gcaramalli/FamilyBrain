@@ -77,8 +77,8 @@ export function CareSlot({
         style={person ? { background: `color-mix(in srgb, ${person.color} 14%, transparent)` } : undefined}
       >
         <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
-          style={{ background: person?.color ?? "var(--border)" }}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${person ? "text-white" : "border border-dashed border-muted text-muted"}`}
+          style={person ? { background: person.color } : undefined}
         >
           {person ? person.name.slice(0, 1) : "?"}
         </span>

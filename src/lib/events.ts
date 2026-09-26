@@ -8,12 +8,13 @@ const DAY = 86400000;
 // Events overlapping [from, to), with repeating events expanded into their
 // occurrences (in the phone's local time). Multi-day events that started
 // before `from` but are still running are included.
-export async function fetchOccurrences(supabase: SupabaseClient, from: Date, to: Date): Promise<EventOccurrence[]> {
+// Pass `familyId` when using the service-role client (no RLS to scope it).
+export async function fetchOccurrences(supabase: SupabaseClient, from: Date, to: Date, familyId?: string): Promise<EventOccurrence[]> {
   const fromIso = from.toISOString();
   const fromDate = dayKey(from);
-  const { data } = await supabase
-    .from("events")
-    .select("*")
+  let query = supabase.from("events").select("*");
+  if (familyId) query = query.eq("family_id", familyId);
+  const { data } = await query
     .lt("starts_at", to.toISOString())
     .or(
       `and(recurrence.is.null,or(starts_at.gte.${fromIso},ends_at.gte.${fromIso})),and(recurrence.not.is.null,or(recurrence_until.is.null,recurrence_until.gte.${fromDate}))`,

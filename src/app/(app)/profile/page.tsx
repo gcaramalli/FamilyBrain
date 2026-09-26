@@ -4,30 +4,37 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClaudeConnector } from "@/components/claude-connector";
 import { useFamily } from "@/components/family-context";
+import { PushSettings } from "@/components/push-settings";
+import { LOCALES, type Locale } from "@/lib/i18n";
 
 const COLORS = ["#4f46e5", "#db2777", "#059669", "#d97706", "#0891b2", "#7c3aed", "#dc2626", "#475569"];
 
 export default function ProfilePage() {
-  const { supabase, profile, members } = useFamily();
+  const { supabase, profile, members, me, locale, t } = useFamily();
   const router = useRouter();
-  const me = members.find((m) => m.profile_id === profile.id);
   const [name, setName] = useState(profile.display_name);
-  const [color, setColor] = useState(profile.color);
+  const [color, setColor] = useState(me?.color ?? profile.color);
   const [emoji, setEmoji] = useState(me?.emoji ?? "🙂");
+  const [lang, setLang] = useState<Locale>(locale);
   const [saved, setSaved] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [pwMessage, setPwMessage] = useState<string | null>(null);
 
+  // Colours someone else in the family already has: two people with the same
+  // colour can't be told apart on the calendar.
+  const taken = new Map(members.filter((m) => m.id !== me?.id).map((m) => [m.color.toLowerCase(), m.name]));
+  const changed = () => setSaved(false);
+
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setPwMessage(error ? error.message : "✓ Password changed");
+    setPwMessage(error ? error.message : `✓ ${t("Password changed")}`);
     if (!error) setNewPassword("");
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    await supabase.from("profiles").update({ display_name: name, color }).eq("id", profile.id);
+    await supabase.from("profiles").update({ display_name: name, color, locale: lang }).eq("id", profile.id);
     // Keep the calendar "member" row in sync with the profile.
     if (me) await supabase.from("members").update({ name, color, emoji }).eq("id", me.id);
     setSaved(true);
@@ -42,61 +49,80 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">Profile</h1>
+      <h1 className="h1">{t("Profile")}</h1>
 
       <form onSubmit={save} className="card flex flex-col gap-3">
-        <div>
-          <span className="label">Name</span>
-          <input className="input" value={name} onChange={(e) => { setName(e.target.value); setSaved(false); }} />
+        <div className="flex gap-2">
+          <label className="w-20 shrink-0">
+            <span className="label">{t("Emoji")}</span>
+            <input className="input text-center text-xl" value={emoji} onChange={(e) => { setEmoji(e.target.value); changed(); }} />
+          </label>
+          <label className="flex-1">
+            <span className="label">{t("Name")}</span>
+            <input className="input" value={name} onChange={(e) => { setName(e.target.value); changed(); }} />
+          </label>
         </div>
         <div>
-          <span className="label">Emoji</span>
-          <input className="input w-20 text-center text-xl" value={emoji} onChange={(e) => { setEmoji(e.target.value); setSaved(false); }} />
-        </div>
-        <div>
-          <span className="label">Colour on the calendar</span>
+          <span className="label">{t("Colour on the calendar")}</span>
           <div className="flex flex-wrap gap-2">
-            {COLORS.map((c) => (
-              <button
-                type="button"
-                key={c}
-                onClick={() => { setColor(c); setSaved(false); }}
-                className={`h-9 w-9 rounded-full ${color === c ? "ring-2 ring-offset-2 ring-foreground" : ""}`}
-                style={{ background: c }}
-                aria-label={c}
-              />
-            ))}
+            {COLORS.map((c) => {
+              const owner = taken.get(c);
+              return (
+                <button
+                  type="button"
+                  key={c}
+                  disabled={!!owner}
+                  onClick={() => { setColor(c); changed(); }}
+                  className={`relative h-10 w-10 rounded-full disabled:opacity-25 ${color.toLowerCase() === c ? "ring-2 ring-foreground ring-offset-2 ring-offset-surface" : ""}`}
+                  style={{ background: c }}
+                  aria-label={owner ? t("{colour}, taken by {name}", { colour: c, name: owner }) : c}
+                  title={owner ? t("Taken by {name}", { name: owner }) : undefined}
+                >
+                  {owner && <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white">{owner.slice(0, 1)}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <p className="text-sm text-muted">{profile.email} · {profile.role}</p>
-        <button className="btn">{saved ? "✓ Saved" : "Save"}</button>
+        <label>
+          <span className="label">{t("Language")}</span>
+          <select className="input" value={lang} onChange={(e) => { setLang(e.target.value as Locale); changed(); }}>
+            {LOCALES.map((l) => (
+              <option key={l.id} value={l.id}>{l.label}</option>
+            ))}
+          </select>
+        </label>
+        <p className="text-sm text-muted">{profile.email} · {t(profile.role)}</p>
+        <button className="btn">{saved ? `✓ ${t("Saved")}` : t("Save")}</button>
       </form>
 
+      <PushSettings />
+
       <form onSubmit={changePassword} className="card flex flex-col gap-3">
-        <h2 className="h2">🔑 Password</h2>
+        <h2 className="h2">🔑 {t("Password")}</h2>
         <input
           className="input"
           type="password"
           autoComplete="new-password"
           minLength={8}
           required
-          placeholder="New password (at least 8 characters)"
+          placeholder={t("New password (at least 8 characters)")}
           value={newPassword}
           onChange={(e) => { setNewPassword(e.target.value); setPwMessage(null); }}
         />
-        <button className="btn">Change password</button>
+        <button className="btn">{t("Change password")}</button>
         {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
 
       <ClaudeConnector />
 
       <section className="card text-sm">
-        <h2 className="h2 mb-2">📱 Put it on your home screen</h2>
-        <p><b>iPhone:</b> open in Safari → Share → “Add to Home Screen”.</p>
-        <p className="mt-1"><b>Android:</b> open in Chrome → ⋮ menu → “Install app”.</p>
+        <h2 className="h2 mb-2">📱 {t("Put it on your home screen")}</h2>
+        <p>{t("iPhone: open in Safari → Share → “Add to Home Screen”.")}</p>
+        <p className="mt-1">{t("Android: open in Chrome → ⋮ menu → “Install app”.")}</p>
       </section>
 
-      <button className="btn-ghost text-danger" onClick={signOut}>Sign out</button>
+      <button className="btn-ghost py-3 text-danger" onClick={signOut}>{t("Sign out")}</button>
     </div>
   );
 }
