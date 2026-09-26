@@ -49,8 +49,27 @@ export type CalendarEvent = {
   created_by?: string | null;
 };
 
-// One occurrence of an event (a repeating event yields several).
-export type EventOccurrence = CalendarEvent & { key: string; occurrence_start: string; occurrence_end: string | null };
+// One occurrence of an event (a repeating event yields several). Family dates
+// (our anniversary, the kids' birthdays) are shown as read-only occurrences
+// with a `badge` and a `link` instead of an editable event.
+export type EventOccurrence = CalendarEvent & {
+  key: string;
+  occurrence_start: string;
+  occurrence_end: string | null;
+  badge?: string;
+  link?: string;
+};
+
+export type Occasion = {
+  id: string;
+  kind: "wedding" | "birthday" | "other";
+  title: string;
+  date: string; // original day, YYYY-MM-DD
+  ours: boolean;
+  member_ids: string[];
+  ended: boolean;
+  notes: string | null;
+};
 
 export type List = { id: string; name: string; kind: "grocery" | "todo"; position: number };
 

@@ -36,6 +36,7 @@ export function EventRow({ ev, day, onClick }: { ev: EventOccurrence; day?: stri
       <div className="w-16 shrink-0 pt-0.5 text-sm tabular-nums text-muted">{when(ev, t, day)}</div>
       <div className="min-w-0 flex-1">
         <div className="font-medium">
+          {ev.badge && `${ev.badge} `}
           {title}
           {ev.recurrence && <span className="ml-1 text-xs text-muted" title={t("Repeats")}>🔁</span>}
         </div>
