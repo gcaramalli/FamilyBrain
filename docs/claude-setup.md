@@ -13,16 +13,19 @@ writes into the app. Calendar events go to your shared Google Calendar instead.
 
 Redeploy after adding them.
 
-Your connector URL is: `https://<your-app>.vercel.app/api/mcp/<MCP_TOKEN>`
+Connector URL: `https://caramalli-familly-brain.vercel.app/api/mcp` (no secret in it).
+The secret goes in a request header: `Authorization` = `Bearer <MCP_TOKEN>`.
 
-⚠️ That URL works like a password: anyone who has it can read and write your lists, recipes and notes
-(not the calendar, not accounts). Don't paste it in chats or screenshots. If it leaks, change `MCP_TOKEN`
-in Vercel, redeploy, and update the connector.
+⚠️ `MCP_TOKEN` works like a password: anyone who has it can read and write your lists, recipes and notes
+(not the calendar, not accounts). Never paste it in chats or screenshots. If it leaks, generate a new one,
+update `MCP_TOKEN` in Vercel, redeploy, and update the header in each Claude account.
+
+(Legacy: `/api/mcp/<MCP_TOKEN>` still works but puts the secret in the URL — avoid.)
 
 ## 2. Add the connector (each of you, in your own Claude account)
 
-Claude app / claude.ai → Settings → Connectors → **Add custom connector** → name it "Family Brain",
-paste the URL. Also make sure the **Google Calendar** connector is on.
+Claude app / claude.ai → Settings → Connectors → **Add custom connector** → name "Family Brain",
+URL above, Authentication **None**, then **Add header**: name `Authorization`, value `Bearer <MCP_TOKEN>`. Also make sure the **Google Calendar** connector is on.
 
 ## 3. Create a "Famille" project in Claude
 
@@ -54,5 +57,5 @@ Start family conversations inside this project so the routing rules apply.
 Claude Code can use the same connector:
 
 ```bash
-claude mcp add --transport http family-brain https://<your-app>.vercel.app/api/mcp/<MCP_TOKEN>
+claude mcp add --transport http family-brain https://caramalli-familly-brain.vercel.app/api/mcp --header "Authorization: Bearer <MCP_TOKEN>"
 ```

@@ -10,7 +10,7 @@ Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny'
 
 ## Adding things for the family
 
-Preferred: the **Family Brain connector** (`/api/mcp/<MCP_TOKEN>`, tools in `src/lib/mcp/tools.ts`) for
+Preferred: the **Family Brain connector** (`/api/mcp` + bearer header, tools in `src/lib/mcp/tools.ts`) for
 lists, purchases, recipes and notes, and the **Google Calendar** connector (calendar "Famille") for events.
 Setup and routing prompt: `docs/claude-setup.md`.
 
@@ -67,7 +67,7 @@ Rules of thumb:
 - Env: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.example`)
 - Pages under `src/app/(app)` are client components talking to Supabase directly (RLS is the security
   boundary). New tables need RLS + a `family all` policy like the existing ones.
-- `src/app/api/mcp/[token]/route.ts` is the Claude connector (mcp-handler + MCP SDK v2). It uses the
+- `src/app/api/mcp/route.ts` (Authorization: Bearer header; `[token]/` = legacy secret-in-URL) is the Claude connector (mcp-handler + MCP SDK v2). It uses the
   service-role client (`src/lib/supabase/admin.ts`, bypasses RLS), so every query in `src/lib/mcp/tools.ts`
   must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY`, `FAMILY_ID`, `MCP_TOKEN`.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
