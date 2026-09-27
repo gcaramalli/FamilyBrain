@@ -6,13 +6,14 @@ import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventRow } from "@/components/event-row";
 import { HubTile } from "@/components/hub-tile";
+import { fetchDueTodos, TodoRow, todoDay } from "@/components/todo-row";
 import { SendGift } from "@/components/send-gift";
 import { CARE_KINDS, careKind, fetchAvailability, findSlot, isCareDay, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
-import type { CareAvailability, EventOccurrence, Member, Occasion, RestockSuggestion } from "@/lib/types";
+import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
@@ -21,6 +22,7 @@ export default function TodayPage() {
   const [answers, setAnswers] = useState<CareAvailability[]>([]);
   const [openCount, setOpenCount] = useState<number | null>(null);
   const [todoCount, setTodoCount] = useState<number | null>(null);
+  const [dueTodos, setDueTodos] = useState<ListItem[]>([]);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
 
   const loadEvents = useCallback(async () => {
@@ -32,6 +34,7 @@ export default function TodayPage() {
     ]);
     setEvents(evs);
     setAnswers(said);
+    setDueTodos(await fetchDueTodos(supabase, dayKey(addDays(today, 1))));
   }, [supabase, members, t]);
 
   useEffect(() => {
@@ -71,6 +74,11 @@ export default function TodayPage() {
   const isKidCare = (e: EventOccurrence) => careKind(e) !== null && kids.some((k) => k.id === e.for_member_id);
   const today = (byDay.get(todayKey) ?? []).filter((e) => !isKidCare(e));
   const tomorrow = (byDay.get(tomorrowKey) ?? []).filter((e) => !isKidCare(e));
+  // To-dos due today (and late ones) or tomorrow sit with the day's events.
+  const todosOn = (k: string) => dueTodos.filter((i) => todoDay(i) === k);
+  const todayTodos = todosOn(todayKey);
+  const tomorrowTodos = todosOn(tomorrowKey);
+  const onTodo = (x: ListItem, done: boolean) => (done ? setDueTodos((xs) => xs.filter((y) => y.id !== x.id)) : loadEvents());
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("Good morning") : hour < 18 ? t("Hi") : t("Good evening");
 
@@ -88,11 +96,15 @@ export default function TodayPage() {
       {/* What's coming in the next day or so. Kids' care is in their card above. */}
       <section>
         <h2 className="h2">{t("Coming up")}</h2>
-        {today.length === 0 && tomorrow.length === 0 && <p className="py-2 text-sm text-muted">{t("Nothing else planned.")}</p>}
+        {today.length + tomorrow.length + todayTodos.length + tomorrowTodos.length === 0 && (
+          <p className="py-2 text-sm text-muted">{t("Nothing else planned.")}</p>
+        )}
+        {todayTodos.length > 0 && <ul className="mt-1">{todayTodos.map((i) => <TodoRow key={i.id} item={i} onDone={onTodo} />)}</ul>}
         {today.length > 0 && <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} day={todayKey} />)}</div>}
-        {tomorrow.length > 0 && (
+        {tomorrow.length + tomorrowTodos.length > 0 && (
           <>
             <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">{t("Tomorrow")}</h3>
+            {tomorrowTodos.length > 0 && <ul>{tomorrowTodos.map((i) => <TodoRow key={i.id} item={i} onDone={onTodo} />)}</ul>}
             <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} day={tomorrowKey} />)}</div>
           </>
         )}
