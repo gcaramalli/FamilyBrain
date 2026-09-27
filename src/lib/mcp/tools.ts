@@ -7,6 +7,8 @@ import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
+import { findByName, meetingAgenda, personItems } from "@/lib/work";
+import type { WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to the caller's family (see ./context.ts) because the service-role
@@ -40,6 +42,12 @@ Routing:
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
 - Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
   the calendar on purpose (only the family's own dates show there); the app reminds the right people the evening before.
+- The speaker's own WORK (colleagues, work projects, meetings, "tell Karim to…", "discuss X with my boss"): get_work /
+  add_work_items / update_work_item / set_work_entry. Private to the speaker: never mix it with family lists or notes, and
+  don't bring it up unless asked. File each item yourself: who it's for (person), which project, which recurring meeting,
+  and the kind (todo = I do it, give = hand it to the person, discuss = bring it up with them). Call get_work first to
+  know the people, projects and meetings; if a name is new, ask before creating it with set_work_entry.
+  "Done in the Tuesday meeting: gave X to Karim" → update_work_item status "waiting" (handed over) or "done".
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -51,6 +59,67 @@ function familyId() {
   const ctx = mcpContext.getStore();
   if (!ctx) throw new Error("No family context for this request");
   return ctx.familyId;
+}
+
+// Work tools act on the speaker's private work space only: they need a
+// personal link (the legacy family token has no owner).
+function ownerId() {
+  const id = mcpContext.getStore()?.profileId;
+  if (!id) throw new Error("The work space needs a personal connector link (Me → Reminders & AI).");
+  return id;
+}
+
+async function loadWork() {
+  const db = createAdminClient();
+  const owner = ownerId();
+  const [p, pr, m, i] = await Promise.all([
+    db.from("work_people").select("id, name, role, created_at").eq("profile_id", owner).order("name"),
+    db.from("work_projects").select("id, name, person_ids, archived, created_at").eq("profile_id", owner).order("name"),
+    db.from("work_meetings").select("id, name, weekday, person_ids, created_at").eq("profile_id", owner).order("name"),
+    db.from("work_items").select("*").eq("profile_id", owner).neq("status", "done").order("created_at"),
+  ]);
+  const error = p.error ?? pr.error ?? m.error ?? i.error;
+  if (error) throw new Error(error.message);
+  return {
+    people: (p.data ?? []) as WorkPerson[],
+    projects: (pr.data ?? []) as WorkProject[],
+    meetings: (m.data ?? []) as WorkMeeting[],
+    items: (i.data ?? []) as WorkItem[],
+  };
+}
+
+type Work = Awaited<ReturnType<typeof loadWork>>;
+
+// Name → id; "" clears (null), undefined leaves it unchanged.
+function workRef(rows: { id: string; name: string }[], name: string | undefined, what: string) {
+  if (name === undefined) return undefined;
+  if (!name.trim()) return null;
+  const hit = findByName(rows, name);
+  if (!hit) throw new Error(`No ${what} called "${name}". Known: ${rows.map((r) => r.name).join(", ") || "none"}. Ask before creating it with set_work_entry.`);
+  return hit.id;
+}
+
+function findWork<T extends { name: string }>(rows: T[], name: string, what: string) {
+  const hit = findByName(rows, name);
+  if (!hit) throw new Error(`No ${what} called "${name}". Known: ${rows.map((r) => r.name).join(", ") || "none"}`);
+  return hit;
+}
+
+const WEEKDAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function workItemOut(i: WorkItem, w: Work) {
+  const name = (rows: { id: string; name: string }[], id: string | null) => rows.find((r) => r.id === id)?.name ?? null;
+  return {
+    id: i.id,
+    title: i.title,
+    kind: i.kind,
+    status: i.status,
+    person: name(w.people, i.person_id),
+    project: name(w.projects, i.project_id),
+    meeting: name(w.meetings, i.meeting_id),
+    due: i.due_date,
+    waiting_since: i.waiting_since?.slice(0, 10) ?? null,
+  };
 }
 
 // Who is talking, stored as created_by so the app can show "added by …".
@@ -948,6 +1017,163 @@ export function registerTools(server: McpServer) {
         .insert({ family_id: familyId(), from_profile: from, to_profile: target.id, emoji: emoji || "❤️", message: message?.trim() || null });
       if (error) throw new Error(error.message);
       return text(`Sent ${emoji || "❤️"} to ${target.display_name}. They'll unwrap it next time they open Hembrain.`);
+    },
+  );
+
+  server.registerTool(
+    "get_work",
+    {
+      title: "Get my work space",
+      description:
+        "The speaker's private work organiser: people (boss/peer/team), projects with their people, recurring meetings with attendees, and open or waiting items. Filter by person (their items + items on their projects), project, or meeting (its agenda + what attendees still owe).",
+      inputSchema: z.object({
+        person: z.string().optional(),
+        project: z.string().optional(),
+        meeting: z.string().optional(),
+      }),
+    },
+    async ({ person, project, meeting }) => {
+      const w = await loadWork();
+      const names = (ids: string[]) => ids.map((id) => w.people.find((p) => p.id === id)?.name).filter(Boolean);
+      const out = (items: WorkItem[]) => items.map((i) => workItemOut(i, w));
+      if (person) {
+        const p = findWork(w.people, person, "person");
+        const { direct, viaProjects } = personItems(p, w.items, w.projects);
+        return text({ person: p.name, role: p.role, items: out(direct), on_their_projects: out(viaProjects) });
+      }
+      if (project) {
+        const p = findWork(w.projects, project, "project");
+        return text({ project: p.name, people: names(p.person_ids), items: out(w.items.filter((i) => i.project_id === p.id)) });
+      }
+      if (meeting) {
+        const m = findWork(w.meetings, meeting, "meeting");
+        const { onAgenda, waiting } = meetingAgenda(m, w.items);
+        return text({ meeting: m.name, day: m.weekday ? WEEKDAYS[m.weekday] : null, attendees: names(m.person_ids), agenda: out(onAgenda), waiting_on_attendees: out(waiting) });
+      }
+      return text({
+        people: w.people.map((p) => ({ name: p.name, role: p.role })),
+        projects: w.projects.map((p) => ({ name: p.name, people: names(p.person_ids), archived: p.archived })),
+        meetings: w.meetings.map((m) => ({ name: m.name, day: m.weekday ? WEEKDAYS[m.weekday] : null, attendees: names(m.person_ids) })),
+        items: out(w.items),
+      });
+    },
+  );
+
+  server.registerTool(
+    "add_work_items",
+    {
+      title: "Add to my work space",
+      description:
+        "File one or more items in the speaker's private work space. Set person / project / meeting with names from get_work, and kind: todo (I do it), give (hand it to the person), discuss (bring it up with the person).",
+      inputSchema: z.object({
+        items: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(500),
+              kind: z.enum(["todo", "give", "discuss"]).optional().describe("Default todo"),
+              person: z.string().optional(),
+              project: z.string().optional(),
+              meeting: z.string().optional().describe("Recurring meeting where it should come up"),
+              due: z.string().optional().describe("YYYY-MM-DD"),
+              already_handed_over: z.boolean().optional().describe("Already given to the person: now waiting on them"),
+            }),
+          )
+          .min(1)
+          .max(50),
+      }),
+    },
+    async ({ items }) => {
+      const w = await loadWork();
+      const now = new Date().toISOString();
+      const rows = items.map((i) => ({
+        family_id: familyId(),
+        profile_id: ownerId(),
+        title: i.title.trim(),
+        kind: i.kind ?? "todo",
+        person_id: workRef(w.people, i.person, "person") ?? null,
+        project_id: workRef(w.projects, i.project, "project") ?? null,
+        meeting_id: workRef(w.meetings, i.meeting, "meeting") ?? null,
+        due_date: i.due || null,
+        status: i.already_handed_over ? "waiting" : "open",
+        waiting_since: i.already_handed_over ? now : null,
+      }));
+      const { data, error } = await createAdminClient().from("work_items").insert(rows).select("*");
+      if (error) throw new Error(error.message);
+      return text({ added: ((data ?? []) as WorkItem[]).map((i) => workItemOut(i, w)) });
+    },
+  );
+
+  server.registerTool(
+    "update_work_item",
+    {
+      title: "Update a work item",
+      description:
+        "Change a work item by id (from get_work): status open / waiting (handed over, waiting on the person) / done, or re-file it. An empty string clears person, project, meeting or due.",
+      inputSchema: z.object({
+        id: z.string().uuid(),
+        title: z.string().min(1).max(500).optional(),
+        kind: z.enum(["todo", "give", "discuss"]).optional(),
+        status: z.enum(["open", "waiting", "done"]).optional(),
+        person: z.string().optional(),
+        project: z.string().optional(),
+        meeting: z.string().optional(),
+        due: z.string().optional(),
+      }),
+    },
+    async ({ id, title, kind, status, person, project, meeting, due }) => {
+      const w = await loadWork();
+      const row: Record<string, unknown> = {};
+      if (title !== undefined) row.title = title.trim();
+      if (kind !== undefined) row.kind = kind;
+      if (status !== undefined) {
+        const now = new Date().toISOString();
+        row.status = status;
+        row.waiting_since = status === "waiting" ? now : null;
+        row.done_at = status === "done" ? now : null;
+      }
+      const refs = { person_id: workRef(w.people, person, "person"), project_id: workRef(w.projects, project, "project"), meeting_id: workRef(w.meetings, meeting, "meeting") };
+      for (const [k, v] of Object.entries(refs)) if (v !== undefined) row[k] = v;
+      if (due !== undefined) row.due_date = due || null;
+      const { data, error } = await createAdminClient().from("work_items").update(row).eq("id", id).eq("profile_id", ownerId()).select("*").maybeSingle();
+      if (error) throw new Error(error.message);
+      if (!data) throw new Error("No work item with that id in your space.");
+      return text({ updated: workItemOut(data as WorkItem, w) });
+    },
+  );
+
+  server.registerTool(
+    "set_work_entry",
+    {
+      title: "Add or edit a work person, project or meeting",
+      description:
+        "Create, or update (matched by name), a person, project or recurring meeting in the speaker's private work space. Ask the user before creating a new one.",
+      inputSchema: z.object({
+        type: z.enum(["person", "project", "meeting"]),
+        name: z.string().min(1).max(80),
+        new_name: z.string().min(1).max(80).optional().describe("Rename"),
+        role: z.enum(["boss", "peer", "team", "other"]).optional().describe("person: boss = my manager, team = reports to me, peer = colleague"),
+        people: z.array(z.string()).optional().describe("project: people on it; meeting: attendees (names of existing people)"),
+        weekday: z.number().int().min(1).max(7).optional().describe("meeting: ISO weekday, 1 = Monday"),
+        archived: z.boolean().optional().describe("project"),
+      }),
+    },
+    async ({ type, name, new_name, role, people, weekday, archived }) => {
+      const w = await loadWork();
+      const db = createAdminClient();
+      const table = type === "person" ? "work_people" : type === "project" ? "work_projects" : "work_meetings";
+      const rows: { id: string; name: string }[] = type === "person" ? w.people : type === "project" ? w.projects : w.meetings;
+      const existing = findByName(rows, name);
+      const row: Record<string, unknown> = {};
+      if (new_name || !existing) row.name = (new_name ?? name).trim();
+      if (type === "person" && role) row.role = role;
+      if (type !== "person" && people) row.person_ids = people.map((n) => workRef(w.people, n, "person")).filter(Boolean);
+      if (type === "meeting" && weekday !== undefined) row.weekday = weekday;
+      if (type === "project" && archived !== undefined) row.archived = archived;
+      const { error } = existing
+        ? await db.from(table).update(row).eq("id", existing.id).eq("profile_id", ownerId())
+        : await db.from(table).insert({ ...row, family_id: familyId(), profile_id: ownerId() });
+      if (error) throw new Error(error.message);
+      return text(`${existing ? "Updated" : "Created"} ${type} "${(new_name ?? existing?.name ?? name).trim()}".`);
     },
   );
 }

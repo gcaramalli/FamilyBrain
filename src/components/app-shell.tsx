@@ -17,7 +17,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
-  const ME = ["/me", "/profile", "/connections", "/admin", "/stats", "/brain"];
+  const ME = ["/me", "/profile", "/connections", "/admin", "/stats", "/brain", "/work"];
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
 
