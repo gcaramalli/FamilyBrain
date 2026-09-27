@@ -553,4 +553,11 @@ export const fr: Record<string, string> = {
   "@person or @all, what to do…": "@personne ou @tous, quoi faire…",
   "Waiting on: {names}": "En attente de : {names}",
   "Name someone with @, or @all for everyone in the meeting.": "Désigne quelqu'un avec @, ou @tous pour tous les participants.",
+  "Add something… (! = priority)": "Ajouter… (! = prioritaire)",
+  "@person #project what to do… (! = priority)": "@personne #projet quoi faire… (! = prioritaire)",
+  "Priority": "Prioritaire",
+  "My to-do": "Ma to-do",
+  "Nothing to do yourself. Add it above, or tell Claude.": "Rien à faire toi-même. Ajoute-le au-dessus, ou dis-le à Claude.",
+  "Waiting on others": "En attente des autres",
+  "Edit details": "Modifier la fiche",
 };

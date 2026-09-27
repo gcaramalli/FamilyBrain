@@ -1,5 +1,6 @@
 "use client";
 
+import { Flag, Pencil } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { useFamily } from "@/components/family-context";
@@ -8,13 +9,13 @@ import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { dayKey, fmtDate } from "@/lib/dates";
 import type { WorkItem, WorkMeeting, WorkPerson, WorkProject, WorkRole } from "@/lib/types";
-import { afterMeeting, daysSince, HISTORY_DAYS, meetingAgenda, nextMeetingDate, parseCapture, personItems, WORK_KINDS, WORK_ROLES } from "@/lib/work";
+import { afterMeeting, daysSince, HISTORY_DAYS, meetingAgenda, nextMeetingDate, parseCapture, personItems, sortItems, WORK_KINDS, WORK_ROLES } from "@/lib/work";
 
 // My work, private: people (manager, team, peers), projects and recurring
 // meetings, and what to do, hand over or discuss with each. Claude can file
 // things here through my own connector link (see src/lib/mcp/tools.ts).
 
-type Tab = "people" | "projects" | "meetings" | "waiting";
+type Tab = "me" | "people" | "projects" | "meetings";
 // items = open and waiting; done = finished in the last HISTORY_DAYS, newest first.
 type Data = { people: WorkPerson[]; projects: WorkProject[]; meetings: WorkMeeting[]; items: WorkItem[]; done: WorkItem[] };
 type Open =
@@ -32,7 +33,7 @@ const clean = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerC
 export default function WorkPage() {
   const { supabase, t } = useFamily();
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTab] = useState<Tab>("people");
+  const [tab, setTab] = useState<Tab>("me");
   const [open, setOpen] = useState<Open | null>(null);
 
   const load = useCallback(async () => {
@@ -48,7 +49,7 @@ export default function WorkPage() {
       people: (p.data ?? []) as WorkPerson[],
       projects: (pr.data ?? []) as WorkProject[],
       meetings: (m.data ?? []) as WorkMeeting[],
-      items: (i.data ?? []) as WorkItem[],
+      items: sortItems((i.data ?? []) as WorkItem[]),
       done: (d.data ?? []) as WorkItem[],
     });
   }, [supabase]);
@@ -58,10 +59,10 @@ export default function WorkPage() {
   }, [load]);
 
   const tabs: { id: Tab; label: string }[] = [
+    { id: "me", label: t("Me") },
     { id: "people", label: t("People") },
     { id: "projects", label: t("Projects") },
     { id: "meetings", label: t("Meetings") },
-    { id: "waiting", label: t("Waiting") },
   ];
   const newWhat = tab === "projects" ? "project" : tab === "meetings" ? "meeting" : "person";
 
@@ -71,7 +72,7 @@ export default function WorkPage() {
         title={t("Work")}
         module="work"
         back="/me"
-        action={tab !== "waiting" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
+        action={tab !== "me" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
       >
         <div className="grid grid-cols-4 rounded-full bg-accent-soft p-1 text-sm">
           {tabs.map((x) => (
@@ -89,10 +90,10 @@ export default function WorkPage() {
       {data && (
         <>
           <Capture data={data} onAdded={load} />
-          {tab === "people" && <PeopleTab data={data} onOpen={setOpen} onChanged={load} />}
+          {tab === "me" && <MeTab data={data} onOpen={setOpen} onChanged={load} />}
+          {tab === "people" && <PeopleTab data={data} onOpen={setOpen} />}
           {tab === "projects" && <ProjectsTab data={data} onOpen={setOpen} />}
           {tab === "meetings" && <MeetingsTab data={data} onOpen={setOpen} />}
-          {tab === "waiting" && <WaitingTab data={data} onOpen={setOpen} onChanged={load} />}
           <Sheets data={data} open={open} setOpen={setOpen} onChanged={load} />
         </>
       )}
@@ -100,8 +101,9 @@ export default function WorkPage() {
   );
 }
 
-// One line to capture anything: "@Anna #EVP send the brief".
-function Capture({ data, onAdded }: { data: Data; onAdded: () => void }) {
+// One line to capture anything: "@Anna #EVP send the brief", "!" = priority.
+// Inside a person's or project's sheet it is already filed there (preset).
+function Capture({ data, onAdded, preset }: { data: Data; onAdded: () => void; preset?: { person_id?: string; project_id?: string } }) {
   const { supabase, t } = useFamily();
   const [line, setLine] = useState("");
   const [kind, setKind] = useState<WorkItem["kind"]>("todo");
@@ -126,8 +128,9 @@ function Capture({ data, onAdded }: { data: Data; onAdded: () => void }) {
     await supabase.from("work_items").insert({
       title: parsed.title.slice(0, 500),
       kind,
-      person_id: parsed.person?.id ?? null,
-      project_id: parsed.project?.id ?? null,
+      priority: parsed.priority,
+      person_id: parsed.person?.id ?? preset?.person_id ?? null,
+      project_id: parsed.project?.id ?? preset?.project_id ?? null,
       meeting_id: parsed.meeting?.id ?? null,
     });
     setLine("");
@@ -136,9 +139,15 @@ function Capture({ data, onAdded }: { data: Data; onAdded: () => void }) {
   }
 
   return (
-    <form onSubmit={add} className="card flex flex-col gap-2">
+    <form onSubmit={add} className={`flex flex-col gap-2 ${preset ? "rounded-2xl bg-accent-soft p-3" : "card"}`}>
       <div className="flex gap-2">
-        <input className="input" value={line} onChange={(e) => setLine(e.target.value)} placeholder={t("@person #project what to do…")} maxLength={600} />
+        <input
+          className="input"
+          value={line}
+          onChange={(e) => setLine(e.target.value)}
+          placeholder={preset ? t("Add something… (! = priority)") : t("@person #project what to do… (! = priority)")}
+          maxLength={600}
+        />
         <button className="btn" disabled={!parsed.title} aria-label={t("Add")}>+</button>
       </div>
       {suggestions.length > 0 && (
@@ -157,6 +166,7 @@ function Capture({ data, onAdded }: { data: Data; onAdded: () => void }) {
             {t(k.label)}
           </button>
         ))}
+        {parsed.priority && <span className="chip">! {t("Priority")}</span>}
         {parsed.person && <span className="chip">@{parsed.person.name}</span>}
         {parsed.project && <span className="chip">#{parsed.project.name}</span>}
         {parsed.meeting && <span className="chip">#{parsed.meeting.name}</span>}
@@ -232,7 +242,10 @@ function ItemRow({
         </span>
       </button>
       <button onClick={() => onOpen({ type: "item", id: item.id })} className="min-w-0 flex-1 text-left">
-        <span className={`block break-words ${item.status === "done" ? "text-muted line-through" : ""}`}>{item.title}</span>
+        <span className={`block break-words ${item.status === "done" ? "text-muted line-through" : ""}`}>
+          {item.priority && item.status !== "done" && <Flag size={14} className="mr-1.5 inline -translate-y-px text-danger" aria-label={t("Priority")} />}
+          {item.title}
+        </span>
         <span className="flex flex-wrap gap-1.5 pt-0.5 text-xs text-muted">
           {item.kind !== "todo" && kind && <span>{t(kind.label)}</span>}
           {person && !hide.includes("person") && <span>@{person.name}</span>}
@@ -279,16 +292,10 @@ function Row({ title, sub, count, onClick }: { title: string; sub?: string; coun
   );
 }
 
-function PeopleTab({ data, onOpen, onChanged }: { data: Data; onOpen: (o: Open) => void; onChanged: () => void }) {
+function PeopleTab({ data, onOpen }: { data: Data; onOpen: (o: Open) => void }) {
   const { t } = useFamily();
-  const unsorted = data.items.filter((i) => i.status === "open" && !i.person_id && !i.project_id && !i.meeting_id);
   return (
     <div className="flex flex-col gap-4">
-      {unsorted.length > 0 && (
-        <div className="card">
-          <ItemList title={t("To sort")} items={unsorted} data={data} onOpen={onOpen} onChanged={onChanged} />
-        </div>
-      )}
       {WORK_ROLES.map((r) => {
         const people = data.people.filter((p) => p.role === r.id);
         if (!people.length) return null;
@@ -362,19 +369,44 @@ function MeetingsTab({ data, onOpen }: { data: Data; onOpen: (o: Open) => void }
   );
 }
 
-function WaitingTab({ data, onOpen, onChanged }: { data: Data; onOpen: (o: Open) => void; onChanged: () => void }) {
+// My side: priorities, what I have to do myself, what is not filed yet, and
+// what I'm waiting for from others (oldest first, per person).
+function MeTab({ data, onOpen, onChanged }: { data: Data; onOpen: (o: Open) => void; onChanged: () => void }) {
   const { t } = useFamily();
+  const open = data.items.filter((i) => i.status === "open");
+  const priority = open.filter((i) => i.priority);
+  const todo = open.filter((i) => !i.priority && i.kind === "todo");
+  const unsorted = open.filter((i) => !i.priority && i.kind !== "todo" && !i.person_id && !i.project_id && !i.meeting_id);
   const waiting = data.items.filter((i) => i.status === "waiting").sort((a, b) => (a.waiting_since ?? "").localeCompare(b.waiting_since ?? ""));
   const byPerson = new Map<string, WorkItem[]>();
   for (const i of waiting) byPerson.set(i.person_id ?? "", [...(byPerson.get(i.person_id ?? "") ?? []), i]);
-  if (!waiting.length) return <p className="text-sm text-muted">{t("Nothing handed over is waiting.")}</p>;
+  const list = { data, onOpen, onChanged };
   return (
-    <div className="flex flex-col gap-3">
-      {[...byPerson.entries()].map(([pid, items]) => (
-        <div key={pid || "-"} className="card">
-          <ItemList title={data.people.find((p) => p.id === pid)?.name ?? t("Nobody")} items={items} hide={["person"]} data={data} onOpen={onOpen} onChanged={onChanged} />
+    <div className="flex flex-col gap-4">
+      {priority.length > 0 && (
+        <div className="card">
+          <ItemList title={t("Priority")} items={priority} {...list} />
         </div>
-      ))}
+      )}
+      <div className="card">
+        <ItemList title={t("My to-do")} items={todo} {...list} />
+        {!todo.length && <p className="text-sm text-muted">{t("Nothing to do yourself. Add it above, or tell Claude.")}</p>}
+      </div>
+      {unsorted.length > 0 && (
+        <div className="card">
+          <ItemList title={t("To sort")} items={unsorted} {...list} />
+        </div>
+      )}
+      {waiting.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="h2">{t("Waiting on others")}</h2>
+          {[...byPerson.entries()].map(([pid, items]) => (
+            <div key={pid || "-"} className="card">
+              <ItemList title={data.people.find((p) => p.id === pid)?.name ?? t("Nobody")} items={items} hide={["person"]} {...list} />
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }
@@ -412,6 +444,8 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
       const open_ = direct.filter((i) => i.status === "open");
       body = (
         <div className="flex flex-col gap-4">
+          {p.notes && <p className="whitespace-pre-line text-sm text-muted">{p.notes}</p>}
+          <Capture data={data} onAdded={onChanged} preset={{ person_id: p.id }} />
           {WORK_KINDS.map((k) => (
             <ItemList key={k.id} title={t(k.label)} items={open_.filter((i) => i.kind === k.id)} hide={["person"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           ))}
@@ -419,7 +453,9 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
           <ItemList title={t("On their projects")} items={viaProjects} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!direct.length && !viaProjects.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
           <History items={data.done.filter((i) => i.person_id === p.id)} hide={["person"]} data={data} onOpen={setOpen} onChanged={onChanged} />
-          <EntityForm key={p.id} what="person" data={data} person={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details>
+            <EntityForm key={p.id} what="person" data={data} person={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          </Details>
         </div>
       );
     }
@@ -428,12 +464,23 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
     if (p) {
       title = p.name;
       const items = data.items.filter((i) => i.project_id === p.id);
+      const who = p.person_ids.map((id) => data.people.find((x) => x.id === id)?.name).filter(Boolean).join(", ");
       body = (
         <div className="flex flex-col gap-4">
+          {(who || p.notes) && (
+            <p className="whitespace-pre-line text-sm text-muted">
+              {who}
+              {who && p.notes ? "\n" : ""}
+              {p.notes}
+            </p>
+          )}
+          <Capture data={data} onAdded={onChanged} preset={{ project_id: p.id }} />
           <ItemList items={items} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!items.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
           <History items={data.done.filter((i) => i.project_id === p.id)} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
-          <EntityForm key={p.id} what="project" data={data} project={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details>
+            <EntityForm key={p.id} what="project" data={data} project={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          </Details>
         </div>
       );
     }
@@ -458,7 +505,9 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
             onOpen={setOpen}
             onChanged={onChanged}
           />
-          <EntityForm key={m.id} what="meeting" data={data} meeting={m} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details>
+            <EntityForm key={m.id} what="meeting" data={data} meeting={m} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          </Details>
         </div>
       );
     }
@@ -605,6 +654,7 @@ function ItemForm({ item, data, onChanged, onClose }: { item: WorkItem; data: Da
       .update({
         title: d.title.trim(),
         kind: d.kind,
+        priority: d.priority,
         status: d.status,
         person_id: d.person_id,
         project_id: d.project_id,
@@ -644,6 +694,10 @@ function ItemForm({ item, data, onChanged, onClose }: { item: WorkItem; data: Da
           </button>
         ))}
       </div>
+      <button type="button" onClick={() => set("priority", !d.priority)} className={`chip-toggle self-start ${d.priority ? "chip-on" : ""}`}>
+        <Flag size={14} />
+        {t("Priority")}
+      </button>
       <div className="grid grid-cols-3 rounded-full bg-accent-soft p-1 text-sm">
         {(["open", "waiting", "done"] as const).map((s) => (
           <button type="button" key={s} onClick={() => set("status", s)} className={`min-h-9 rounded-full ${d.status === s ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}>
@@ -741,5 +795,19 @@ function MeetingCapture({ meeting, data, onAdded }: { meeting: WorkMeeting; data
         <p className="text-xs text-muted">{who ? t("Waiting on: {names}", { names: who }) : t("Name someone with @, or @all for everyone in the meeting.")}</p>
       )}
     </form>
+  );
+}
+
+// A person's, project's or meeting's own settings, folded under its items.
+function Details({ children }: { children: React.ReactNode }) {
+  const { t } = useFamily();
+  const [open, setOpen] = useState(false);
+  return open ? (
+    <>{children}</>
+  ) : (
+    <button className="btn-ghost self-start" onClick={() => setOpen(true)}>
+      <Pencil size={14} />
+      {t("Edit details")}
+    </button>
   );
 }
