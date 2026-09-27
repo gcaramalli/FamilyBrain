@@ -1,5 +1,6 @@
 "use client";
 
+import { Moon, Settings, Sun } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
@@ -128,7 +129,7 @@ export default function KidsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="h1">{kids.length === 1 ? `${kid.emoji} ${kid.name}` : t("Kids")}</h1>
-        <button className="btn-ghost" onClick={() => setSettings(true)} aria-label={t("Settings for {name}", { name: kid.name })}>⚙️</button>
+        <button className="btn-ghost" onClick={() => setSettings(true)} aria-label={t("Settings for {name}", { name: kid.name })}><Settings size={18} /></button>
       </div>
 
       {kids.length > 1 && (
@@ -161,8 +162,8 @@ export default function KidsPage() {
       <section className="card flex flex-col gap-1 p-2">
         <div className="grid grid-cols-[3.25rem_1fr_1fr] gap-2 px-1 pb-1 text-xs uppercase tracking-wide text-muted">
           <span />
-          <span>☀️ {t("Morning")}</span>
-          <span>🌙 {t("Afternoon")}</span>
+          <span className="flex items-center gap-1"><Sun size={12} /> {t("Morning")}</span>
+          <span className="flex items-center gap-1"><Moon size={12} /> {t("Afternoon")}</span>
         </div>
         {shown.map((d) => {
           const k = dayKey(d);
@@ -250,11 +251,11 @@ function KidSettings({ kid, onDone }: { kid: Member; onDone: () => void }) {
     <form onSubmit={save} className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
         <label>
-          <span className="label">☀️ {t("Drop-off")}</span>
+          <span className="label flex items-center gap-1"><Sun size={14} /> {t("Drop-off")}</span>
           <input className="input" type="time" value={dropoff} onChange={(e) => setDropoff(e.target.value)} required />
         </label>
         <label>
-          <span className="label">🌙 {t("Pick-up")}</span>
+          <span className="label flex items-center gap-1"><Moon size={14} /> {t("Pick-up")}</span>
           <input className="input" type="time" value={pickup} onChange={(e) => setPickup(e.target.value)} required />
         </label>
       </div>

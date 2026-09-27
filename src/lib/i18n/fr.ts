@@ -482,4 +482,5 @@ export const fr: Record<string, string> = {
   "Clear my answer": "Effacer ma réponse",
   "Only you can see this.": "Personne d'autre que toi ne le voit.",
   "Close": "Fermer",
+  "Pinned": "Épinglée",
 };

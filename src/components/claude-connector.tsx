@@ -71,7 +71,7 @@ export function ClaudeConnector() {
 
   return (
     <section className="card flex flex-col gap-3">
-      <h2 className="h2">🤖 {t("Connect Claude or ChatGPT")}</h2>
+      <h2 className="h2">{t("Connect Claude or ChatGPT")}</h2>
       <p className="text-sm text-muted">
         {t("Lets your AI app read and add to the calendar, lists, recipes and notes, as you.")} {(naming || newUrl) && steps[app]}
       </p>

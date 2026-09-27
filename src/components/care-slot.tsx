@@ -1,5 +1,6 @@
 "use client";
 
+import { Moon, Sun } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useFamily } from "./family-context";
 import { assignSlot, findSlot, setAvailability, usualTime, type CareKind } from "@/lib/care";
@@ -126,8 +127,8 @@ export function CareSlot({
           </span>
         )}
         <span className="min-w-0">
-          <span className="block text-xs tabular-nums text-muted">
-            {kind === "dropoff" ? "☀️" : "🌙"} {time}
+          <span className="flex items-center gap-1 text-xs tabular-nums text-muted">
+            {kind === "dropoff" ? <Sun size={12} /> : <Moon size={12} />} {time}
           </span>
           <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"}`}>
             {goer ? `${goer.name} ✓` : status}

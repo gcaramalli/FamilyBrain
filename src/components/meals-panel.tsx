@@ -1,5 +1,6 @@
 "use client";
 
+import { Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "./family-context";
 import { KitchenHeader } from "./page-header";
@@ -56,7 +57,7 @@ export function MealsPanel() {
 
       {meals.length === 0 ? (
         <div className="card text-center text-muted">
-          <p className="text-3xl">🍽</p>
+          <Utensils size={28} className="mx-auto" />
           <p className="mt-2">{t("Nothing logged yet. Tell Claude “we had salmon and potatoes tonight”, or add it here. After a week you'll see how balanced it was.")}</p>
         </div>
       ) : (

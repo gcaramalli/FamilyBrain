@@ -1,5 +1,6 @@
 "use client";
 
+import { ListChecks, ShoppingCart, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { MemberBadge, MemberSelect } from "@/components/member-select";
@@ -200,7 +201,7 @@ export default function ListsPage() {
             onClick={() => setActiveId(l.id)}
             className={`chip-toggle ${l.id === activeId ? "chip-on" : ""}`}
           >
-            {l.kind === "grocery" ? "🛒" : "✅"} {l.name}
+            {l.kind === "grocery" ? <ShoppingCart size={14} /> : <ListChecks size={14} />} {l.name}
           </button>
         ))}
         {active && (
@@ -259,7 +260,7 @@ export default function ListsPage() {
 
           {isGrocery && suggestions.length > 0 && (
             <section className="card border-dashed">
-              <h2 className="font-semibold">🔮 {t("Probably needed soon")}</h2>
+              <h2 className="flex items-center gap-1.5 font-semibold"><Sparkles size={16} /> {t("Probably needed soon")}</h2>
               <p className="mb-2 text-xs text-muted">{t("Based on how often you buy these. Tap to add.")}</p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s) => {
@@ -387,8 +388,8 @@ function NewListForm({ onCreate }: { onCreate: (name: string, kind: List["kind"]
       <input className="input" placeholder={t("Name, e.g. IKEA or Weekend chores")} value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
       <div className="grid grid-cols-2 gap-2">
         {([
-          ["grocery", "🛒", t("Shopping"), t("Sorted by aisle, learns what you buy")],
-          ["todo", "✅", t("To-do"), t("With who does it and by when")],
+          ["grocery", <ShoppingCart key="g" size={22} />, t("Shopping"), t("Sorted by aisle, learns what you buy")],
+          ["todo", <ListChecks key="t" size={22} />, t("To-do"), t("With who does it and by when")],
         ] as const).map(([k, icon, label, hint]) => (
           <button
             type="button"
@@ -396,7 +397,7 @@ function NewListForm({ onCreate }: { onCreate: (name: string, kind: List["kind"]
             onClick={() => setKind(k)}
             className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left ${kind === k ? "border-foreground bg-accent-soft" : "border-border"}`}
           >
-            <span className="text-2xl">{icon}</span>
+            <span>{icon}</span>
             <span className="font-medium">{label}</span>
             <span className="text-xs text-muted">{hint}</span>
           </button>

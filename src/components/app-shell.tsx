@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarDays, CookingPot, House, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -22,13 +23,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // The Kids tab only shows up for families with a child, in the middle.
   const tabs = [
-    { href: "/", label: t("Today"), icon: "🏠" },
-    { href: "/calendar", label: t("Calendar"), icon: "📅" },
+    { href: "/", label: t("Today"), icon: <House size={20} /> },
+    { href: "/calendar", label: t("Calendar"), icon: <CalendarDays size={20} /> },
     ...(kids.length
-      ? [{ href: "/kids", label: kids.length === 1 ? kids[0].name : t("Kids"), icon: kids.length === 1 ? kids[0].emoji : "👶" }]
+      ? [
+          {
+            href: "/kids",
+            label: kids.length === 1 ? kids[0].name : t("Kids"),
+            // Colour means a person: the kid's tab wears the kid's colour.
+            icon:
+              kids.length === 1 ? (
+                <span className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold text-white" style={{ background: kids[0].color }}>
+                  {kids[0].name.slice(0, 1)}
+                </span>
+              ) : (
+                <Users size={20} />
+              ),
+          },
+        ]
       : []),
-    { href: "/lists", label: t("Kitchen"), icon: "🍳" },
-    { href: "/me", label: t("Me"), icon: "👤" },
+    { href: "/lists", label: t("Kitchen"), icon: <CookingPot size={20} /> },
+    { href: "/me", label: t("Me"), icon: <UserRound size={20} /> },
   ];
 
   return (
@@ -61,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     aria-current={active ? "page" : undefined}
                     className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-semibold text-foreground" : "text-muted"}`}
                   >
-                    <span className={`flex h-8 w-12 items-center justify-center rounded-full text-xl leading-none transition-colors ${active ? "bg-accent-soft" : "grayscale-[40%]"}`}>
+                    <span className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${active ? "bg-accent-soft" : ""}`}>
                       {tab.icon}
                     </span>
                     <span className="max-w-full truncate px-0.5">{tab.label}</span>
