@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
@@ -14,28 +16,33 @@ const SUGGESTED: Pick<PrivateBoard, "emoji" | "title" | "kind">[] = [
   { emoji: "✅", title: "To-do", kind: "list" },
   { emoji: "🎁", title: "Gift ideas", kind: "gifts" },
   { emoji: "📝", title: "Notes", kind: "note" },
-  { emoji: "💼", title: "Work", kind: "list" },
+  { emoji: "💼", title: "Work", kind: "work" },
 ];
 
 type Draft = Pick<PrivateBoard, "emoji" | "title" | "kind">;
 
 // My own corner: tiles of to-dos, notes and ideas (Christmas presents…) that
-// nobody else in the family sees. Not read by the Claude connector either.
+// nobody else in the family sees. Not read by the Claude connector either,
+// except the Work tile's space (/work), through my own connector link only.
 export function PrivateSpace() {
   const { supabase, t } = useFamily();
   const toast = useToast();
+  const router = useRouter();
   const [boards, setBoards] = useState<PrivateBoard[] | null>(null);
   const [items, setItems] = useState<PrivateItem[]>([]);
+  const [workOpen, setWorkOpen] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState<Draft | null>(null);
 
   const load = useCallback(async () => {
-    const [b, i] = await Promise.all([
+    const [b, i, w] = await Promise.all([
       supabase.from("private_boards").select("*").order("position").order("created_at"),
       supabase.from("private_items").select("*").order("created_at"),
+      supabase.from("work_items").select("id", { count: "exact", head: true }).eq("status", "open"),
     ]);
     setBoards((b.data ?? []) as PrivateBoard[]);
     setItems((i.data ?? []) as PrivateItem[]);
+    setWorkOpen(w.count ?? 0);
   }, [supabase]);
 
   useEffect(() => {
@@ -51,7 +58,8 @@ export function PrivateSpace() {
     const { data } = await supabase.from("private_boards").insert({ ...d, title, position }).select().single();
     setCreating(null);
     await load();
-    if (data) setOpenId(data.id);
+    if (data?.kind === "work") router.push("/work");
+    else if (data) setOpenId(data.id);
   }
 
   async function removeBoard(board: PrivateBoard) {
@@ -83,19 +91,26 @@ export function PrivateSpace() {
           {boards.map((b, n) => {
             const tint = TINTS[n % TINTS.length];
             // No preview of the content: someone may be looking over my shoulder.
-            const left = items.filter((i) => i.board_id === b.id && !i.done).length;
-            return (
-              <button
-                key={b.id}
-                onClick={() => setOpenId(b.id)}
-                className="flex min-h-28 flex-col justify-between gap-2 rounded-[22px] p-4 text-left transition-transform active:scale-[0.98]"
-                style={{ background: `color-mix(in srgb, ${tint} 22%, var(--surface))` }}
-              >
+            const left = b.kind === "work" ? workOpen : items.filter((i) => i.board_id === b.id && !i.done).length;
+            const className = "flex min-h-28 flex-col justify-between gap-2 rounded-[22px] p-4 text-left transition-transform active:scale-[0.98]";
+            const style = { background: `color-mix(in srgb, ${tint} 22%, var(--surface))` };
+            const inner = (
+              <>
                 <span className="min-w-0">
                   <span className="line-clamp-2 block font-bold leading-tight">{b.title}</span>
                   {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
                 </span>
                 <span className="self-end text-3xl leading-none">{b.emoji}</span>
+              </>
+            );
+            // The work tile is a door to its own page (people, projects, meetings).
+            return b.kind === "work" ? (
+              <Link key={b.id} href="/work" className={className} style={style}>
+                {inner}
+              </Link>
+            ) : (
+              <button key={b.id} onClick={() => setOpenId(b.id)} className={className} style={style}>
+                {inner}
               </button>
             );
           })}

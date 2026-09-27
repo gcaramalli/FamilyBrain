@@ -157,7 +157,7 @@ export type PrivateBoard = {
   id: string;
   title: string;
   emoji: string;
-  kind: "list" | "note" | "gifts";
+  kind: "list" | "note" | "gifts" | "work";
   body: string;
   position: number;
   updated_at: string;
@@ -170,5 +170,26 @@ export type PrivateItem = {
   done: boolean;
   person: string | null; // gifts: who it's for
   occasion: string | null; // gifts: Christmas, birthday…
+  created_at: string;
+};
+
+// Private work space (owner-only): people at work, projects, recurring
+// meetings, and what to do / hand over / discuss with them.
+export type WorkRole = "boss" | "peer" | "team" | "other";
+export type WorkPerson = { id: string; name: string; role: WorkRole; notes: string; created_at: string };
+export type WorkProject = { id: string; name: string; person_ids: string[]; archived: boolean; notes: string; created_at: string };
+export type WorkMeeting = { id: string; name: string; weekday: number | null; person_ids: string[]; created_at: string };
+export type WorkItem = {
+  id: string;
+  title: string;
+  kind: "todo" | "give" | "discuss"; // I do it / hand it over / bring it up
+  status: "open" | "waiting" | "done"; // waiting = handed over, waiting on the person
+  person_id: string | null;
+  project_id: string | null;
+  meeting_id: string | null;
+  due_date: string | null;
+  not_before: string | null; // off agendas until then ("for next week's meeting")
+  waiting_since: string | null;
+  done_at: string | null;
   created_at: string;
 };
