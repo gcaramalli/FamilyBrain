@@ -6,6 +6,9 @@ import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import type { PrivateBoard, PrivateItem } from "@/lib/types";
 
+// Tile tints, in order: the space looks like a box of coloured cards.
+const TINTS = ["#2fc2b0", "#f2b441", "#e07ab4", "#9b7bf0", "#4f9bf5", "#f5904a", "#3fbf7f", "#f0826f"];
+
 // Starting tiles, offered until the person makes their own.
 const SUGGESTED: Pick<PrivateBoard, "emoji" | "title" | "kind">[] = [
   { emoji: "✅", title: "To-do", kind: "list" },
@@ -77,14 +80,22 @@ export function PrivateSpace() {
 
       {boards && (
         <div className="grid grid-cols-2 gap-3">
-          {boards.map((b) => {
+          {boards.map((b, n) => {
+            const tint = TINTS[n % TINTS.length];
             // No preview of the content: someone may be looking over my shoulder.
             const left = items.filter((i) => i.board_id === b.id && !i.done).length;
             return (
-              <button key={b.id} onClick={() => setOpenId(b.id)} className="card flex min-h-20 flex-col gap-1 p-3 text-left">
-                <span className="text-2xl leading-none">{b.emoji}</span>
-                <span className="line-clamp-2 font-medium">{b.title}</span>
-                {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
+              <button
+                key={b.id}
+                onClick={() => setOpenId(b.id)}
+                className="flex min-h-28 flex-col justify-between gap-2 rounded-[22px] p-4 text-left transition-transform active:scale-[0.98]"
+                style={{ background: `color-mix(in srgb, ${tint} 22%, var(--surface))` }}
+              >
+                <span className="min-w-0">
+                  <span className="line-clamp-2 block font-bold leading-tight">{b.title}</span>
+                  {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
+                </span>
+                <span className="self-end text-3xl leading-none">{b.emoji}</span>
               </button>
             );
           })}
@@ -92,10 +103,10 @@ export function PrivateSpace() {
             <button
               key={s.title}
               onClick={() => create({ ...s, title: t(s.title) })}
-              className="flex min-h-20 flex-col gap-1 rounded-2xl border border-dashed border-border p-3 text-left text-muted"
+              className="flex min-h-28 flex-col justify-between gap-2 rounded-[22px] border border-dashed border-border p-4 text-left text-muted"
             >
-              <span className="text-2xl leading-none opacity-60">{s.emoji}</span>
-              <span className="font-medium">+ {t(s.title)}</span>
+              <span className="font-bold">+ {t(s.title)}</span>
+              <span className="self-end text-3xl leading-none opacity-50">{s.emoji}</span>
             </button>
           ))}
         </div>

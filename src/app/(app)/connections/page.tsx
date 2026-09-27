@@ -10,7 +10,7 @@ export default function ConnectionsPage() {
   const { t } = useFamily();
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/me" title={t("Reminders & AI")} />
+      <PageHeader module="connections" back="/me" title={t("Reminders & AI")} />
       <PushSettings />
       <ClaudeConnector />
       <section className="card text-sm">

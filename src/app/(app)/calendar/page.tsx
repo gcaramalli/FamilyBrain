@@ -1,5 +1,6 @@
 "use client";
 
+import { ModuleIcon } from "@/components/module-icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
@@ -123,8 +124,8 @@ export default function CalendarPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="h1">{t("Calendar")}</h1>
-        <button className="btn" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>
+        <h1 className="h1 flex items-center gap-3"><ModuleIcon id="calendar" size={36} />{t("Calendar")}</h1>
+        <button className="btn min-h-10 px-4 text-sm" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>
       </div>
 
       <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">

@@ -18,18 +18,19 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  /* Night blue rather than black: the module colours glow on it. */
   :root {
-    --background: #131312;
-    --surface: #1d1d1b;
-    --foreground: #eeece7;
-    --muted: #a19e95;
-    --border: #2e2d2a;
-    --accent: #eeece7;
-    --on-accent: #131312;
-    --accent-soft: #292826;
+    --background: #111722;
+    --surface: #1a2230;
+    --foreground: #eef1f6;
+    --muted: #93a0b4;
+    --border: #273142;
+    --accent: #eef1f6;
+    --on-accent: #111722;
+    --accent-soft: #232d3d;
     --danger: #f87171;
     --lift: none;
-    --edge: #2a2927;
+    --edge: transparent;
   }
 }
 
@@ -44,7 +45,6 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
-  --font-display: var(--font-fraunces);
 }
 
 body {
@@ -75,13 +75,11 @@ body {
   .label {
     @apply mb-1 block text-sm text-muted;
   }
-  /* Titles in a soft serif: the family's notebook, not an admin panel. */
   .h1 {
-    @apply font-display text-[2rem] leading-[1.1] font-medium tracking-[-0.01em] text-balance;
-    font-variation-settings: "SOFT" 100, "opsz" 72;
+    @apply text-[1.9rem] leading-[1.1] font-bold tracking-[-0.02em] text-balance;
   }
   .h2 {
-    @apply text-[1.05rem] font-semibold tracking-[-0.005em];
+    @apply text-[1.1rem] font-bold tracking-[-0.01em];
   }
   .eyebrow {
     @apply text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted;
