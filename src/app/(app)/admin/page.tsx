@@ -100,7 +100,7 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/me" title={t("Family settings")} />
+      <PageHeader module="family" back="/me" title={t("Family settings")} />
 
       <form onSubmit={saveFamily} className="card flex flex-col gap-2">
         <h2 className="h2">{t("Family")}</h2>

@@ -48,7 +48,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader back="/me" title={t("Profile")} />
+      <PageHeader module="profile" back="/me" title={t("Profile")} />
 
       <form onSubmit={save} className="card flex flex-col gap-3">
         <div className="flex gap-2">

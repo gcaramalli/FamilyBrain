@@ -67,7 +67,7 @@ export default function BrainPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
+      <PageHeader module="brain"
         back="/me"
         title={t("Family brain")}
         action={tab === "notes" && <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>}

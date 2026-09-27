@@ -69,7 +69,7 @@ export default function StatsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <PageHeader back="/me" title={t("Hembrain stats")} />
+        <PageHeader module="stats" back="/me" title={t("Hembrain stats")} />
         <p className="text-sm text-muted">{t("Counts and dates only, never a family's content.")}</p>
       </div>
 

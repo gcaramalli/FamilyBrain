@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useFamily } from "./family-context";
+import { ModuleIcon } from "./module-icon";
+import type { ModuleId } from "@/lib/modules";
 
 // Every screen: title on the left, at most one main action on the right,
 // sub-sections as a segmented control underneath.
@@ -10,9 +12,11 @@ export function PageHeader({
   title,
   action,
   back,
+  module,
   children,
 }: {
   title: React.ReactNode;
+  module?: ModuleId; // the section's coloured icon before the title
   action?: React.ReactNode;
   back?: string; // sub-pages of Me link back to it
   children?: React.ReactNode;
@@ -26,7 +30,10 @@ export function PageHeader({
         </Link>
       )}
       <div className="flex min-h-11 items-center justify-between gap-3">
-        <h1 className="h1 min-w-0">{title}</h1>
+        <h1 className="h1 flex min-w-0 items-center gap-3">
+          {module && <ModuleIcon id={module} size={36} />}
+          <span className="min-w-0">{title}</span>
+        </h1>
         {action && <div className="flex shrink-0 gap-2 [&_.btn]:min-h-10 [&_.btn]:px-4 [&_.btn]:text-sm">{action}</div>}
       </div>
       {children}
@@ -60,7 +67,7 @@ export function Segments({ items }: { items: { href: string; label: string }[] }
 export function KitchenHeader({ action }: { action?: React.ReactNode }) {
   const { t } = useFamily();
   return (
-    <PageHeader title={t("Kitchen")} action={action}>
+    <PageHeader title={t("Kitchen")} module="kitchen" action={action}>
       <Segments
         items={[
           { href: "/lists", label: t("Shopping") },

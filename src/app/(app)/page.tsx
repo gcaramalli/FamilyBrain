@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventRow } from "@/components/event-row";
+import { HubTile } from "@/components/hub-tile";
 import { SendGift } from "@/components/send-gift";
 import { CARE_KINDS, careKind, fetchAvailability, findSlot, isCareDay, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
@@ -92,24 +93,17 @@ export default function TodayPage() {
 
       <SoonCard occasions={occasions} meId={me?.id} />
 
-      <nav className="card divide-y divide-border py-1">
-        <Link href="/lists" className="flex min-h-12 items-center justify-between gap-3 py-2">
-          <div className="min-w-0">
-            <div className="font-medium">{t("Shopping")}</div>
-            <p className="truncate text-sm text-muted">
-              {openCount === null ? "…" : openCount === 1 ? t("1 item to buy") : t("{n} items to buy", { n: openCount })}
-              {restock.length > 0 && ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}`}
-            </p>
-          </div>
-          <span className="text-muted">→</span>
-        </Link>
-        <Link href="/brain" className="flex min-h-12 items-center justify-between gap-3 py-2">
-          <div className="min-w-0">
-            <div className="font-medium">{t("Family brain")}</div>
-            <p className="truncate text-sm text-muted">{t("Notes and dates worth remembering")}</p>
-          </div>
-          <span className="text-muted">→</span>
-        </Link>
+      <nav className="grid grid-cols-2 gap-3">
+        <HubTile
+          href="/lists"
+          module="shopping"
+          title={t("Shopping")}
+          sub={
+            (openCount === null ? "…" : openCount === 1 ? t("1 item to buy") : t("{n} items to buy", { n: openCount })) +
+            (restock.length > 0 ? ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}` : "")
+          }
+        />
+        <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
       </nav>
 
       <SendGift />
