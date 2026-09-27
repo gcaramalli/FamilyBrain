@@ -452,4 +452,16 @@ export const fr: Record<string, string> = {
   "{app} loses access. Revoke?": "{app} perd l'accès. Révoquer ?",
   "Name, e.g. {app} on my phone": "Nom, ex. {app} sur mon téléphone",
   "{app} link": "Lien {app}",
+  // Private gifts
+  "Gifts": "Cadeaux",
+  "Christmas": "Noël",
+  "Gift idea": "Idée de cadeau",
+  "For whom?": "Pour qui ?",
+  "Occasion": "Occasion",
+  "Not decided yet": "Pas encore décidé",
+  "Mark as not bought": "Marquer comme pas acheté",
+  "Mark as bought": "Marquer comme acheté",
+  "Note an idea as soon as you have it, with who it's for.": "Note une idée dès que tu l'as, avec la personne à qui elle est destinée.",
+  "Hide bought": "Masquer les achetés",
+  "Show bought ({n})": "Voir les achetés ({n})",
 };

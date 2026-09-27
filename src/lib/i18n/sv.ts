@@ -452,4 +452,16 @@ export const sv: Record<string, string> = {
   "{app} loses access. Revoke?": "{app} förlorar åtkomst. Återkalla?",
   "Name, e.g. {app} on my phone": "Namn, t.ex. {app} i mobilen",
   "{app} link": "{app}-länk",
+  // Private gifts
+  "Gifts": "Presenter",
+  "Christmas": "Jul",
+  "Gift idea": "Presentidé",
+  "For whom?": "Till vem?",
+  "Occasion": "Tillfälle",
+  "Not decided yet": "Inte bestämt än",
+  "Mark as not bought": "Markera som inte köpt",
+  "Mark as bought": "Markera som köpt",
+  "Note an idea as soon as you have it, with who it's for.": "Skriv ner en idé så fort du får den, och till vem den är.",
+  "Hide bought": "Dölj köpta",
+  "Show bought ({n})": "Visa köpta ({n})",
 };

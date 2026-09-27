@@ -9,7 +9,7 @@ import type { PrivateBoard, PrivateItem } from "@/lib/types";
 // Starting tiles, offered until the person makes their own.
 const SUGGESTED: Pick<PrivateBoard, "emoji" | "title" | "kind">[] = [
   { emoji: "✅", title: "To-do", kind: "list" },
-  { emoji: "🎁", title: "Gift ideas", kind: "list" },
+  { emoji: "🎁", title: "Gift ideas", kind: "gifts" },
   { emoji: "📝", title: "Notes", kind: "note" },
   { emoji: "💼", title: "Work", kind: "list" },
 ];
@@ -76,22 +76,13 @@ export default function PrivatePage() {
       {boards && (
         <div className="grid grid-cols-2 gap-3">
           {boards.map((b) => {
-            const mine = items.filter((i) => i.board_id === b.id);
-            const left = mine.filter((i) => !i.done);
-            const preview =
-              b.kind === "note"
-                ? b.body.trim().split("\n")[0] || t("Empty")
-                : left.length
-                  ? left.slice(0, 3).map((i) => i.title).join(" · ")
-                  : t("Empty");
+            // No preview of the content: someone may be looking over my shoulder.
+            const left = items.filter((i) => i.board_id === b.id && !i.done).length;
             return (
               <button key={b.id} onClick={() => setOpenId(b.id)} className="card flex min-h-28 flex-col gap-1 p-3 text-left">
                 <span className="text-2xl leading-none">{b.emoji}</span>
-                <span className="flex items-baseline justify-between gap-2 font-medium">
-                  <span className="truncate">{b.title}</span>
-                  {b.kind === "list" && left.length > 0 && <span className="shrink-0 text-xs tabular-nums text-muted">{left.length}</span>}
-                </span>
-                <span className="line-clamp-2 text-sm text-muted">{preview}</span>
+                <span className="line-clamp-2 font-medium">{b.title}</span>
+                {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
               </button>
             );
           })}
@@ -134,15 +125,15 @@ export default function PrivatePage() {
                 maxLength={80}
               />
             </div>
-            <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
-              {(["list", "note"] as const).map((k) => (
+            <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">
+              {(["list", "gifts", "note"] as const).map((k) => (
                 <button
                   type="button"
                   key={k}
                   onClick={() => setCreating({ ...creating, kind: k })}
                   className={`min-h-9 rounded-lg ${creating.kind === k ? "bg-accent font-medium text-on-accent" : ""}`}
                 >
-                  {k === "list" ? `☑️ ${t("List")}` : `📝 ${t("Note")}`}
+                  {k === "list" ? `☑️ ${t("List")}` : k === "gifts" ? `🎁 ${t("Gifts")}` : `📝 ${t("Note")}`}
                 </button>
               ))}
             </div>
@@ -225,7 +216,9 @@ function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard;
         aria-label={t("Title")}
         maxLength={80}
       />
-      {board.kind === "note" ? (
+      {board.kind === "gifts" ? (
+        <GiftIdeas board={board} items={items} onChanged={onChanged} onToggle={toggle} onRemove={remove} />
+      ) : board.kind === "note" ? (
         <textarea
           className="input min-h-64"
           value={body}
@@ -266,5 +259,103 @@ function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard;
       )}
       <button className="btn-ghost self-start text-danger" onClick={onDelete}>{t("Delete this tile")}</button>
     </div>
+  );
+}
+
+// Gift ideas grouped by who they are for, each with an optional occasion.
+// Ticked = bought. Names are free text (friends' kids are not members), with
+// the family and the occasions' people suggested.
+function GiftIdeas({
+  board,
+  items,
+  onChanged,
+  onToggle,
+  onRemove,
+}: {
+  board: PrivateBoard;
+  items: PrivateItem[];
+  onChanged: () => void;
+  onToggle: (i: PrivateItem) => void;
+  onRemove: (i: PrivateItem) => void;
+}) {
+  const { supabase, members, me, t } = useFamily();
+  const [idea, setIdea] = useState("");
+  const [person, setPerson] = useState("");
+  const [occasion, setOccasion] = useState("");
+  const [showBought, setShowBought] = useState(false);
+
+  const people = [...new Set([...members.filter((m) => m.id !== me?.id).map((m) => m.name), ...items.map((i) => i.person ?? "").filter(Boolean)])];
+  const occasions = [...new Set([t("Christmas"), t("Birthday"), ...items.map((i) => i.occasion ?? "").filter(Boolean)])];
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!idea.trim()) return;
+    await supabase.from("private_items").insert({
+      board_id: board.id,
+      title: idea.trim().slice(0, 500),
+      person: person.trim() || null,
+      occasion: occasion.trim() || null,
+    });
+    setIdea(""); // keep the person and occasion: ideas often come in batches
+    onChanged();
+  }
+
+  const shown = items.filter((i) => showBought || !i.done);
+  const groups = new Map<string, PrivateItem[]>();
+  for (const i of shown) {
+    const key = i.person?.trim() || "";
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  }
+  const order = [...groups.keys()].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b)));
+  const bought = items.filter((i) => i.done).length;
+
+  return (
+    <>
+      <form onSubmit={add} className="flex flex-col gap-2 rounded-xl border border-border p-2">
+        <input className="input" placeholder={t("Gift idea")} value={idea} onChange={(e) => setIdea(e.target.value)} maxLength={500} />
+        <div className="grid grid-cols-2 gap-2">
+          <input className="input" list="gift-people" placeholder={t("For whom?")} value={person} onChange={(e) => setPerson(e.target.value)} maxLength={80} />
+          <input className="input" list="gift-occasions" placeholder={t("Occasion")} value={occasion} onChange={(e) => setOccasion(e.target.value)} maxLength={80} />
+        </div>
+        <datalist id="gift-people">{people.map((p) => <option key={p} value={p} />)}</datalist>
+        <datalist id="gift-occasions">{occasions.map((o) => <option key={o} value={o} />)}</datalist>
+        <button className="btn" disabled={!idea.trim()}>+ {t("Add")}</button>
+      </form>
+
+      {order.map((key) => (
+        <section key={key || "-"}>
+          <h3 className="flex items-baseline justify-between border-b border-border pb-1 text-sm font-semibold">
+            <span>{key || t("Not decided yet")}</span>
+            <span className="font-normal tabular-nums text-muted">{groups.get(key)!.length}</span>
+          </h3>
+          <ul className="divide-y divide-border">
+            {groups.get(key)!.map((i) => (
+              <li key={i.id} className="flex min-h-12 items-center gap-3">
+                <button
+                  onClick={() => onToggle(i)}
+                  aria-label={i.done ? t("Mark as not bought") : t("Mark as bought")}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 text-xs ${i.done ? "border-foreground bg-foreground text-background" : "border-border"}`}
+                >
+                  {i.done ? "✓" : ""}
+                </button>
+                <span className={`min-w-0 flex-1 break-words ${i.done ? "text-muted line-through" : ""}`}>
+                  {i.title}
+                  {i.occasion && <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-xs text-muted">{i.occasion}</span>}
+                </span>
+                <button onClick={() => onRemove(i)} aria-label={t("Delete")} className="flex h-9 w-9 shrink-0 items-center justify-center text-muted">
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {!items.length && <p className="text-sm text-muted">{t("Note an idea as soon as you have it, with who it's for.")}</p>}
+      {bought > 0 && (
+        <button className="self-start text-sm text-muted underline" onClick={() => setShowBought(!showBought)}>
+          {showBought ? t("Hide bought") : t("Show bought ({n})", { n: bought })}
+        </button>
+      )}
+    </>
   );
 }
