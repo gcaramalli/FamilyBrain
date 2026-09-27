@@ -33,6 +33,13 @@ export const MEAL_PLACES: { id: MealPlace; label: string; emoji: string }[] = [
   { id: "takeaway", label: "Takeaway", emoji: "🥡" },
 ];
 
+// How a kid took a meal (kid tab → Food).
+export const REACTIONS = [
+  { id: "loved", label: "Loved it", emoji: "😋" },
+  { id: "ok", label: "Ate a bit", emoji: "🙂" },
+  { id: "refused", label: "Refused", emoji: "🙅" },
+] as const;
+
 // Slot that fits the time of day, for a meal logged "now".
 export function slotNow(d = new Date()): MealSlot {
   const h = d.getHours();

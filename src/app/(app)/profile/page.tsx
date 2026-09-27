@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [color, setColor] = useState(me?.color ?? profile.color);
   const [emoji, setEmoji] = useState(me?.emoji ?? "🙂");
   const [lang, setLang] = useState<Locale>(locale);
+  const [birthdate, setBirthdate] = useState(me?.birthdate ?? "");
   const [saved, setSaved] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [pwMessage, setPwMessage] = useState<string | null>(null);
@@ -35,7 +36,7 @@ export default function ProfilePage() {
     e.preventDefault();
     await supabase.from("profiles").update({ display_name: name, color, locale: lang }).eq("id", profile.id);
     // Keep the calendar "member" row in sync with the profile.
-    if (me) await supabase.from("members").update({ name, color, emoji }).eq("id", me.id);
+    if (me) await supabase.from("members").update({ name, color, emoji, birthdate: birthdate || null }).eq("id", me.id);
     setSaved(true);
     router.refresh();
   }
@@ -83,6 +84,13 @@ export default function ProfilePage() {
             })}
           </div>
         </div>
+        {me && (
+          <label>
+            <span className="label">{t("Date of birth")}</span>
+            <input className="input" type="date" value={birthdate} onChange={(e) => { setBirthdate(e.target.value); changed(); }} />
+            <span className="mt-1 block text-xs text-muted">{t("Shown in the family calendar; the others get a reminder the evening before.")}</span>
+          </label>
+        )}
         <label>
           <span className="label">{t("Language")}</span>
           <select className="input" value={lang} onChange={(e) => { setLang(e.target.value as Locale); changed(); }}>

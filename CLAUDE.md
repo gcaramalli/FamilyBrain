@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0017 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0019 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -58,7 +58,15 @@ Rules of thumb:
 - Three levels: member, family admin (`profiles.role`), and Hembrain super admin (`super_admins`, Guillaume only; granted by SQL, no API write policy). Super admins open `/stats`, fed by `hembrain_stats()`, which returns counts and dates across families, never their content.
 - `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites` (secret `code`, `expires_at`, single use)
 - `events` — calendar; `responsible_member_id` = who does it, `for_member_id` = who it's about; `recurrence` (daily/weekdays/weekly/biweekly/monthly) + `recurrence_until`, expanded in `src/lib/recurrence.ts` / `src/lib/events.ts`; `skip_dates` = occurrences removed or changed on their own (a changed one becomes a separate one-off event); `care` = `dropoff`/`pickup` of a child (Kids tab, `src/lib/care.ts`; stored title stays English, e.g. "Pick-up Charlie", and is translated on display). All-day events include their end date.
-- `members` also hold kids' usual `dropoff_time`, `pickup_time`, `care_place`, `care_days` (ISO weekdays)
+- `members` also hold kids' usual `dropoff_time`, `pickup_time`, `care_place`, `care_days` (ISO weekdays), and their
+  `clothing_size` / `shoe_size` (+ `sizes_updated_on`)
+- Kid tab = tiles (`/kids`, kid picked in `KidProvider`, `src/components/kid-context.tsx`): Preschool (`/kids/preschool`, the
+  drop-off / pick-up planner), Sleep, Wardrobe, Food, plus the family's own list/note tiles (`kid_boards` / `kid_items`,
+  rendered by `BoardView` from `private-space.tsx`). `kid_sleep` = naps and nights (`ends_at` null = asleep now, `wakings`
+  counted), summed per day in `src/lib/sleep.ts` (a night belongs to the evening it started); `kid_clothes` = has / need /
+  outgrown by category, season essentials in `src/lib/wardrobe.ts`; Food = the kid's rows in `meals` (their own + family
+  ones) with `meals.reaction` (loved/ok/refused). Connector: `get_kid_sleep` / `log_sleep`, `get_wardrobe` /
+  `update_wardrobe`, `get_meals` with `who`, `log_meal` with `reaction`; Claude gives the bedtime / meal advice, not the app.
 - `care_availability` — per kid/day/`kind`/parent: `available` true ("I can") or false ("I can't"), no row = hasn't said. The one who goes confirms ("I'm going") = the care event's `responsible_member_id` (`src/components/care-slot.tsx`)
 - `push_subscriptions` — one row per device with reminders on (own rows only)
 - `lists` (`kind` grocery → Kitchen, todo → Calendar → To-do, and open to-dos with a `due_date` also show on their day in the calendar and on Today, late ones on today (`src/components/todo-row.tsx`); both rendered by `src/components/lists-view.tsx`) and `list_items` (`category` = aisle id from `src/lib/categories.ts`)
@@ -85,6 +93,8 @@ Rules of thumb:
   `ours` = one of the family's own dates. Deliberately **not** in `events`: only `ours` and members' `birthdate`
   are shown in the calendar (`familyDates` in `src/lib/occasions.ts`); the rest live in Brain → Dates and in the
   evening reminder. Connector: `get_occasions` / `add_occasion`.
+  Family members' own birthdays are `members.birthdate` (asked at sign-up via `handle_new_user`, then Profile, Family settings, kid ⚙️; connector `set_birthdate`), turned
+  into occasions by `familyBirthdays()`: calendar, Brain → Dates, `get_occasions`, and the evening reminder to everyone but the person.
 
 ## Dev
 
@@ -100,7 +110,7 @@ Rules of thumb:
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
 - Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
-  the kid (if any), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
+  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what
   they set (kid's routine and profile in the kid tab ⚙️, list rename/delete in the list's ⋯).
 - UI text: wrap every string in `t("English text")` from `useFamily()`, then add French and Swedish in

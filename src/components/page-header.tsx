@@ -12,13 +12,15 @@ export function PageHeader({
   title,
   action,
   back,
+  backLabel,
   module,
   children,
 }: {
   title: React.ReactNode;
   module?: ModuleId; // the section's coloured icon before the title
   action?: React.ReactNode;
-  back?: string; // sub-pages of Me link back to it
+  back?: string; // sub-pages link back to their hub (Me by default)
+  backLabel?: string;
   children?: React.ReactNode;
 }) {
   const { t } = useFamily();
@@ -26,7 +28,7 @@ export function PageHeader({
     <div className="flex flex-col gap-3">
       {back && (
         <Link href={back} className="-mb-2 self-start text-sm text-muted">
-          ← {t("Me")}
+          ← {backLabel ?? t("Me")}
         </Link>
       )}
       <div className="flex min-h-11 items-center justify-between gap-3">

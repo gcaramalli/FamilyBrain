@@ -59,3 +59,11 @@ export function fmtDate(d: Date | string, opts: Intl.DateTimeFormatOptions) {
 export function fmtDateTime(d: Date | string) {
   return (typeof d === "string" ? new Date(d) : d).toLocaleString(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
+
+// Whole months since a birthdate ("2024-06-15"), for a kid's age.
+export function ageInMonths(birthdate: string, now = new Date()) {
+  const [y, m, d] = birthdate.split("-").map(Number);
+  let months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
+  if (now.getDate() < d) months--;
+  return Math.max(0, months);
+}

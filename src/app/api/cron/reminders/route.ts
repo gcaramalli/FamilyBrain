@@ -8,7 +8,7 @@ import { CARE_KINDS, careTitle, findSlot, isCareDay } from "@/lib/care";
 import { addDays, dayKey, startOfDay } from "@/lib/dates";
 import { fetchOccurrences } from "@/lib/events";
 import { isLocale, translator } from "@/lib/i18n";
-import { fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel } from "@/lib/occasions";
+import { familyBirthdays, fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel } from "@/lib/occasions";
 import { pushEnabled, sendPush } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { EventOccurrence, Member } from "@/lib/types";
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
       fetchOccasions(db, familyId),
     ]);
     // Weddings and birthdays whose anniversary is tomorrow and still celebrated.
-    const dates = occasions
+    const dates = [...occasions, ...familyBirthdays((members ?? []) as Member[])]
       .filter((o) => !o.ended)
       .map((o) => ({ o, ...nextAnniversary(o.date, tomorrow) }))
       .filter((x) => dayKey(x.day) === key && x.years > 0);
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       sent += await sendPush(adult.profile_id!, {
         title: nobody.length ? `⚠️ ${t("Tomorrow")}` : t("Tomorrow"),
         body: [...mine, ...nobody, ...celebrate].join("\n"),
-        url: nobody.length ? "/kids" : mine.length ? "/" : "/brain?tab=dates",
+        url: nobody.length ? "/kids/preschool" : mine.length ? "/" : "/brain?tab=dates",
         tag: `evening-${key}`,
       });
     }

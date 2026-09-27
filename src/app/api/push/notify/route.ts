@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       : news === "cant" ? `⚠️ ${t("{name} can't make it", { name })}`
       : t("{name} gave you something to do", { name }),
     body: `${label} · ${when}`,
-    url: kid ? "/kids" : "/calendar",
+    url: kid ? "/kids/preschool" : "/calendar",
     tag: `${news === "going" || news === "cant" ? "care" : "assign"}-${member_id}-${starts_at}`,
   });
   return Response.json({ sent });

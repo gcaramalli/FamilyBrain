@@ -40,6 +40,23 @@ export function upcoming(occasions: Occasion[], days: number, from: Date = new D
     .sort((a, b) => a.day.getTime() - b.day.getTime());
 }
 
+// Family members' birthdays (members.birthdate) as occasions, id "bday-<member>".
+// They concern everyone but the person themselves.
+export function familyBirthdays(members: Pick<Member, "id" | "name" | "birthdate">[]): Occasion[] {
+  return members
+    .filter((m) => m.birthdate)
+    .map((m) => ({
+      id: `bday-${m.id}`,
+      kind: "birthday" as const,
+      title: m.name,
+      date: m.birthdate!,
+      ours: true,
+      member_ids: members.filter((x) => x.id !== m.id).map((x) => x.id),
+      ended: false,
+      notes: null,
+    }));
+}
+
 // Our own dates (our wedding, the family's birthdays) as read-only all-day
 // calendar entries between `from` and `to`. Friends' occasions never go here.
 export function familyDates(occasions: Occasion[], members: Member[], from: Date, to: Date, t: T): EventOccurrence[] {
