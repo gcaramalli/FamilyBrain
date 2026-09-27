@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0018 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0019 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -93,7 +93,7 @@ Rules of thumb:
   `ours` = one of the family's own dates. Deliberately **not** in `events`: only `ours` and members' `birthdate`
   are shown in the calendar (`familyDates` in `src/lib/occasions.ts`); the rest live in Brain → Dates and in the
   evening reminder. Connector: `get_occasions` / `add_occasion`.
-  Family members' own birthdays are `members.birthdate` (Profile, Family settings, kid ⚙️; connector `set_birthdate`), turned
+  Family members' own birthdays are `members.birthdate` (asked at sign-up via `handle_new_user`, then Profile, Family settings, kid ⚙️; connector `set_birthdate`), turned
   into occasions by `familyBirthdays()`: calendar, Brain → Dates, `get_occasions`, and the evening reminder to everyone but the person.
 
 ## Dev

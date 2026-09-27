@@ -22,6 +22,7 @@ function SignupForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [birthdate, setBirthdate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkEmail, setCheckEmail] = useState(false);
@@ -34,7 +35,12 @@ function SignupForm() {
       email: email.trim(),
       password,
       options: {
-        data: invite ? { display_name: name.trim(), invite_code: invite } : { display_name: name.trim(), family_name: familyName.trim() },
+        // The date of birth goes on the member card (see handle_new_user).
+        data: {
+          display_name: name.trim(),
+          ...(invite ? { invite_code: invite } : { family_name: familyName.trim() }),
+          ...(birthdate ? { birthdate } : {}),
+        },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -83,6 +89,10 @@ function SignupForm() {
           <input className="input" required placeholder="Family name (e.g. Andersson)" value={familyName} onChange={(e) => setFamilyName(e.target.value)} />
         )}
         <input className="input" required autoComplete="given-name" placeholder="Your first name" value={name} onChange={(e) => setName(e.target.value)} />
+        <label>
+          <span className="label">Date of birth (for birthday reminders, optional)</span>
+          <input className="input" type="date" autoComplete="bday" max={new Date().toISOString().slice(0, 10)} value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
+        </label>
         <input className="input" type="email" required autoComplete="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input
           className="input"
