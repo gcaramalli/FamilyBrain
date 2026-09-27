@@ -6,6 +6,7 @@ import { mcpContext, type McpContext } from "./context";
 import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
+import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
 
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to the caller's family (see ./context.ts) because the service-role
@@ -26,7 +27,13 @@ Routing:
 - Shopping and to-dos: add_to_list / check_off / get_list. Default list is the first shopping list.
 - "We bought X" outside the list: log_purchase (feeds the "running out soon" prediction).
 - Recipes: search_recipes / add_recipe. "What should we cook tonight?": dinner_ideas, then suggest 2-3 options
-  (prefer favourites and recipes whose ingredients were bought recently) and offer to add missing ingredients.
+  (prefer favourites and recipes whose ingredients were bought recently, avoid what was eaten in the last days,
+  and balance the week: fill the food groups it lacks, e.g. fish, legumes, vegetables) and offer to add missing ingredients.
+- "We had salmon and potatoes tonight": log_meal (one call per meal; set food_groups yourself from what was on the
+  plate; "yesterday lunch" → date + slot). "What did we eat this week?" / "is it balanced?": get_meals.
+- "What should we buy this week?" / "plan the week's meals": plan_groceries (eating habits, what runs out, what is already
+  on the list), check get_events for the week (trips, dinners out), then propose a few dinners that balance recent weeks
+  and the items to buy. Add to the shopping list only after they agree (add_to_list, skip what is already on it).
 - Receipt photo: read every line, then log_receipt with store, date and items. Use the family's usual item
   names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
@@ -690,29 +697,166 @@ export function registerTools(server: McpServer) {
     async ({ max_minutes, kid_friendly_only }) => {
       const db = createAdminClient();
       const since = new Date(Date.now() - 10 * 86400000).toISOString();
-      const [{ data: recipes, error }, { data: bought }, { data: listed }] = await Promise.all([
-        db.from("recipes").select("title, description, ingredients, tags, prep_minutes, favorite, kid_friendly").eq("family_id", familyId()),
+      const weekAgo = utcToStockholm(new Date(Date.now() - 7 * 86400000).toISOString()).slice(0, 10);
+      const [{ data: recipes, error }, { data: bought }, { data: listed }, { data: eaten }] = await Promise.all([
+        db.from("recipes").select("id, title, description, ingredients, tags, prep_minutes, favorite, kid_friendly").eq("family_id", familyId()),
         db.from("purchases").select("item_key").eq("family_id", familyId()).gte("purchased_at", since),
         db.from("list_items").select("title").eq("family_id", familyId()).eq("done", false),
+        db.from("meals").select("eaten_on, title, recipe_id, food_groups").eq("family_id", familyId()).gte("eaten_on", weekAgo).order("eaten_on"),
       ]);
       if (error) throw new Error(error.message);
       const have = new Set([...(bought ?? []).map((b) => b.item_key), ...(listed ?? []).map((l) => l.title.trim().toLowerCase())]);
       const matches = (ingredient: string) => [...have].some((h) => h.length > 2 && ingredient.toLowerCase().includes(h));
       const ranked = (recipes ?? [])
         .filter((r) => (!max_minutes || !r.prep_minutes || r.prep_minutes <= max_minutes) && (!kid_friendly_only || r.kid_friendly))
-        .map((r) => {
+        .map(({ id, ...r }) => {
           const inHand = r.ingredients.filter(matches);
+          const last = (eaten ?? []).filter((m) => m.recipe_id === id || m.title.toLowerCase() === r.title.toLowerCase()).at(-1);
           return {
             ...r,
             ingredients_in_hand: inHand,
             ingredients_missing: r.ingredients.filter((i: string) => !matches(i)),
-            score: (r.favorite ? 3 : 0) + (r.kid_friendly ? 1 : 0) + inHand.length,
+            last_eaten_this_week: last?.eaten_on ?? null,
+            score: (r.favorite ? 3 : 0) + (r.kid_friendly ? 1 : 0) + inHand.length - (last ? 4 : 0),
           };
         })
         .sort((a, b) => b.score - a.score)
         .slice(0, 8);
-      if (!ranked.length) return text("No recipes saved yet. Suggest ideas from general knowledge and offer to save the ones they like with add_recipe.");
-      return text(ranked);
+      const lastWeek = {
+        meals: (eaten ?? []).map((m) => ({ date: m.eaten_on, title: m.title, food_groups: m.food_groups })),
+        food_group_counts: groupCounts(eaten ?? []),
+      };
+      if (!ranked.length) {
+        return text({
+          note: "No recipes saved yet. Suggest ideas from general knowledge that balance last week, and offer to save the ones they like with add_recipe.",
+          last_week: lastWeek,
+        });
+      }
+      return text({ recipes: ranked, last_week: lastWeek });
+    },
+  );
+
+  server.registerTool(
+    "log_meal",
+    {
+      title: "Log a meal",
+      description:
+        "Record what the family ate (the meals journal). Used to suggest balanced meals and, later, to anticipate groceries. One call per meal.",
+      inputSchema: z.object({
+        title: z.string().min(1).describe("What was eaten, e.g. 'Salmon, potatoes and green beans' or a recipe name"),
+        date: z.string().optional().describe("YYYY-MM-DD, Stockholm; default today"),
+        slot: z.enum(["breakfast", "lunch", "dinner", "snack"]).optional().describe("Default dinner"),
+        food_groups: z
+          .array(z.enum(FOOD_GROUP_IDS))
+          .optional()
+          .describe("What was on the plate: vegetables, fruit, legumes, fish, poultry, red_meat, processed_meat, eggs, dairy, starch (pasta/rice/potatoes/bread), treat (sweets/fried/fast food)"),
+        place: z.enum(["home", "out", "takeaway"]).optional().describe("Default home"),
+        who: z.array(z.string()).optional().describe("First names of who ate, if not the whole family"),
+        recipe: z.string().optional().describe("Name of a saved recipe, if it was one"),
+        notes: z.string().optional().describe("e.g. 'Charlie loved it', 'too salty'"),
+      }),
+    },
+    async (m) => {
+      const db = createAdminClient();
+      const date = m.date ?? utcToStockholm(new Date().toISOString()).slice(0, 10);
+      let recipeId: string | null = null;
+      const recipeName = (m.recipe ?? m.title).trim();
+      const { data: recipes } = await db.from("recipes").select("id, title").eq("family_id", familyId()).ilike("title", recipeName);
+      if (recipes?.length) recipeId = recipes[0].id;
+      else if (m.recipe) throw new Error(`No saved recipe called "${m.recipe}". Log it without "recipe", or save it first with add_recipe.`);
+      const memberIds = await Promise.all((m.who ?? []).map((n) => memberIdByName(n)));
+      const { error } = await db.from("meals").insert({
+        family_id: familyId(),
+        eaten_on: date,
+        slot: m.slot ?? "dinner",
+        title: m.title.trim(),
+        recipe_id: recipeId,
+        food_groups: m.food_groups ?? [],
+        place: m.place ?? "home",
+        member_ids: memberIds.filter(Boolean),
+        notes: m.notes ?? null,
+        created_by: createdBy(),
+      });
+      if (error) throw new Error(error.message);
+      return text(`Logged ${m.slot ?? "dinner"} on ${date}: ${m.title}${recipeId ? " (saved recipe)" : ""}.`);
+    },
+  );
+
+  server.registerTool(
+    "get_meals",
+    {
+      title: "What we ate",
+      description: "The meals journal for the last days, with how many meals touched each food group (to judge balance).",
+      inputSchema: z.object({ days: z.number().int().min(1).max(90).optional().describe("Default 7") }),
+    },
+    async ({ days }) => {
+      const db = createAdminClient();
+      const since = utcToStockholm(new Date(Date.now() - ((days ?? 7) - 1) * 86400000).toISOString()).slice(0, 10);
+      const [{ data, error }, { data: members }] = await Promise.all([
+        db
+          .from("meals")
+          .select("eaten_on, slot, title, food_groups, place, member_ids, notes")
+          .eq("family_id", familyId())
+          .gte("eaten_on", since)
+          .order("eaten_on")
+          .order("created_at"),
+        db.from("members").select("id, name").eq("family_id", familyId()),
+      ]);
+      if (error) throw new Error(error.message);
+      const name = (id: string) => members?.find((x) => x.id === id)?.name ?? "?";
+      const meals = (data ?? []).map(({ member_ids, ...m }) => ({ ...m, who: member_ids.length ? member_ids.map(name) : "everyone" }));
+      return text({ since, meals, food_group_counts: groupCounts(data ?? []) });
+    },
+  );
+
+  server.registerTool(
+    "plan_groceries",
+    {
+      title: "Plan groceries from habits",
+      description:
+        "Everything needed to anticipate the shopping: home-cooked meals of the last weeks (with recipe ingredients), dishes the family eats often, food groups per week, items probably running out, and what is already on the shopping list.",
+      inputSchema: z.object({
+        weeks: z.number().int().min(1).max(12).optional().describe("How far back to look at meals, default 4"),
+        within_days: z.number().int().min(1).max(30).optional().describe("Horizon for items running out, default 7"),
+      }),
+    },
+    async ({ weeks, within_days }) => {
+      const db = createAdminClient();
+      const w = weeks ?? 4;
+      const since = utcToStockholm(new Date(Date.now() - (w * 7 - 1) * 86400000).toISOString()).slice(0, 10);
+      const until = new Date(Date.now() + (within_days ?? 7) * 86400000).toISOString().slice(0, 10);
+      const [{ data: meals, error }, { data: recipes }, { data: due }, { data: listed }] = await Promise.all([
+        db.from("meals").select("eaten_on, slot, title, recipe_id, food_groups, place").eq("family_id", familyId()).gte("eaten_on", since).order("eaten_on"),
+        db.from("recipes").select("id, title, ingredients, favorite").eq("family_id", familyId()),
+        db.from("restock_suggestions").select("item_name, avg_interval_days, next_due_on").eq("family_id", familyId()).lte("next_due_on", until).order("next_due_on"),
+        db.from("list_items").select("title, quantity, lists!inner(kind)").eq("family_id", familyId()).eq("done", false).eq("lists.kind", "grocery"),
+      ]);
+      if (error) throw new Error(error.message);
+      const recipe = (id: string | null) => recipes?.find((r) => r.id === id);
+      const home = (meals ?? []).filter((m) => m.place === "home");
+      // Dishes eaten more than once: the family's habits.
+      const often = new Map<string, { title: string; times: number; last: string; ingredients: string[] }>();
+      for (const m of home) {
+        const r = recipe(m.recipe_id);
+        const key = (r?.title ?? m.title).trim().toLowerCase();
+        const cur = often.get(key) ?? { title: r?.title ?? m.title, times: 0, last: m.eaten_on, ingredients: r?.ingredients ?? [] };
+        often.set(key, { ...cur, times: cur.times + 1, last: m.eaten_on });
+      }
+      const counts = groupCounts(meals ?? []);
+      return text({
+        since,
+        meals_logged: meals?.length ?? 0,
+        note:
+          (meals?.length ?? 0) < 10
+            ? "Few meals logged so far: habits are not reliable yet. Lean on running_out and favourites, and say so."
+            : undefined,
+        home_meals: home.map((m) => ({ date: m.eaten_on, slot: m.slot, title: m.title, ingredients: recipe(m.recipe_id)?.ingredients })),
+        eaten_often: [...often.values()].filter((d) => d.times > 1).sort((a, b) => b.times - a.times),
+        food_groups_per_week: Object.fromEntries(Object.entries(counts).map(([g, n]) => [g, Math.round((n / w) * 10) / 10])),
+        favourite_recipes: (recipes ?? []).filter((r) => r.favorite).map((r) => ({ title: r.title, ingredients: r.ingredients })),
+        running_out: due ?? [],
+        already_on_list: (listed ?? []).map((l) => (l.quantity ? `${l.quantity} ${l.title}` : l.title)),
+      });
     },
   );
 

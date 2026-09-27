@@ -6,12 +6,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Member } from "@/lib/types";
 
 // "Guillaume gave you: Pick-up Charlie · Thu 16:00", sent to the other parent
-// when someone makes them responsible for something.
+// when someone makes them responsible for something. From the Kids tab also
+// "Guillaume is going" and "Guillaume can't make it".
 export async function POST(req: Request) {
   if (!pushEnabled()) return Response.json({ sent: 0 });
   const session = await getSession();
   if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const { member_id, title, starts_at, all_day } = (await req.json()) as { member_id: string; title: string; starts_at: string; all_day?: boolean };
+  const { member_id, title, starts_at, all_day, news } = (await req.json()) as {
+    member_id: string;
+    title: string;
+    starts_at: string;
+    all_day?: boolean;
+    news?: "assigned" | "going" | "cant";
+  };
 
   // RLS: only people in my own family are visible here.
   const { data: members } = await session.supabase.from("members").select("*");
@@ -32,11 +39,15 @@ export async function POST(req: Request) {
     ...(all_day ? {} : { hour: "2-digit", minute: "2-digit" }),
   });
 
+  const name = from?.name ?? session.profile.display_name;
   const sent = await sendPush(to.profile_id, {
-    title: t("{name} gave you something to do", { name: from?.name ?? session.profile.display_name }),
+    title:
+      news === "going" ? t("{name} is going", { name })
+      : news === "cant" ? `⚠️ ${t("{name} can't make it", { name })}`
+      : t("{name} gave you something to do", { name }),
     body: `${label} · ${when}`,
     url: kid ? "/kids" : "/calendar",
-    tag: `assign-${member_id}-${starts_at}`,
+    tag: `${news === "going" || news === "cant" ? "care" : "assign"}-${member_id}-${starts_at}`,
   });
   return Response.json({ sent });
 }

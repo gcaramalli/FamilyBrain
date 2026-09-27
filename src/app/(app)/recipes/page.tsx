@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
+import { MealsPanel } from "@/components/meals-panel";
 import { guessCategory } from "@/lib/categories";
+import { slotNow } from "@/lib/meals";
+import { dayKey } from "@/lib/dates";
 import type { Recipe } from "@/lib/types";
 
 type Draft = Omit<Recipe, "id"> & { id?: string };
@@ -22,7 +25,32 @@ const emptyRecipe: Draft = {
   kid_friendly: false,
 };
 
-export default function RecipesPage() {
+// Meals: what we ate (journal) and the family cookbook.
+export default function MealsPage() {
+  const { t } = useFamily();
+  const [tab, setTab] = useState<"eaten" | "recipes">("eaten");
+
+  // Deep link from the "Tonight?" tile: /recipes?tab=recipes
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "recipes") setTab("recipes");
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h1 className="h1">{t("Meals")}</h1>
+      <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
+        {(["eaten", "recipes"] as const).map((x) => (
+          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
+            {x === "eaten" ? `🍽 ${t("What we ate")}` : `📖 ${t("Recipes")}`}
+          </button>
+        ))}
+      </div>
+      {tab === "eaten" ? <MealsPanel /> : <RecipesPanel />}
+    </div>
+  );
+}
+
+function RecipesPanel() {
   const { supabase, t } = useFamily();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [q, setQ] = useState("");
@@ -52,8 +80,7 @@ export default function RecipesPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="h1">{t("Recipes")}</h1>
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <button className="btn-ghost" onClick={surprise} disabled={!recipes.length}>🎲 {t("Idea")}</button>
           <button className="btn" onClick={() => setEditing({ ...emptyRecipe })}>+ {t("Recipe")}</button>
@@ -128,6 +155,21 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
   const { supabase, t } = useFamily();
   const toast = useToast();
   const [added, setAdded] = useState(false);
+  const [ate, setAte] = useState(false);
+
+  async function weAteThis() {
+    const { data, error } = await supabase
+      .from("meals")
+      .insert({ eaten_on: dayKey(new Date()), slot: slotNow(), title: recipe.title, recipe_id: recipe.id })
+      .select("id")
+      .single();
+    if (error || !data) return toast(t("Could not save"));
+    setAte(true);
+    toast(t("Logged in what we ate"), async () => {
+      await supabase.from("meals").delete().eq("id", data.id);
+      setAte(false);
+    });
+  }
 
   async function addToGroceries() {
     const { data: list } = await supabase.from("lists").select("id").eq("kind", "grocery").order("position").limit(1).single();
@@ -164,7 +206,10 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
       {recipe.source_url && (
         <a href={recipe.source_url} target="_blank" rel="noreferrer" className="text-sm text-accent underline">{t("Original recipe")}</a>
       )}
-      <button className="btn-ghost" onClick={onEdit}>{t("Edit")}</button>
+      <div className="flex gap-2">
+        <button className="btn-ghost flex-1" onClick={weAteThis} disabled={ate}>{ate ? `✓ ${t("Logged")}` : `🍽 ${t("We ate this")}`}</button>
+        <button className="btn-ghost" onClick={onEdit}>{t("Edit")}</button>
+      </div>
     </div>
   );
 }

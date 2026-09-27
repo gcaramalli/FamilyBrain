@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0010 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0012 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -59,11 +59,13 @@ Rules of thumb:
 - `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites` (secret `code`, `expires_at`, single use)
 - `events` — calendar; `responsible_member_id` = who does it, `for_member_id` = who it's about; `recurrence` (daily/weekdays/weekly/biweekly/monthly) + `recurrence_until`, expanded in `src/lib/recurrence.ts` / `src/lib/events.ts`; `skip_dates` = occurrences removed or changed on their own (a changed one becomes a separate one-off event); `care` = `dropoff`/`pickup` of a child (Kids tab, `src/lib/care.ts`; stored title stays English, e.g. "Pick-up Charlie", and is translated on display). All-day events include their end date.
 - `members` also hold kids' usual `dropoff_time`, `pickup_time`, `care_place`, `care_days` (ISO weekdays)
+- `care_availability` — per kid/day/`kind`/parent: `available` true ("I can") or false ("I can't"), no row = hasn't said. The one who goes confirms ("I'm going") = the care event's `responsible_member_id` (`src/components/care-slot.tsx`)
 - `push_subscriptions` — one row per device with reminders on (own rows only)
 - `lists` (`kind` grocery/todo) and `list_items` (`category` = aisle id from `src/lib/categories.ts`)
 - `purchases` — auto-filled by a trigger when a grocery item is checked off (skipped if the item was logged <10 min ago); `source` list/manual/receipt, `store`, `price`
 - `restock_suggestions` — view: average interval between purchases → `next_due_on` (needs ≥2 purchases)
 - `recipes` — `ingredients text[]`, `tags text[]`, `favorite`, `kid_friendly`
+- `meals` — what we ate: `eaten_on`, `slot` (breakfast/lunch/dinner/snack), `title`, optional `recipe_id`, `food_groups` (ids in `src/lib/meals.ts`, for balance), `place` (home/out/takeaway), `member_ids` (empty = everyone). Meals tab → "What we ate"; connector `log_meal` / `get_meals`, `dinner_ideas` returns last week's meals, `plan_groceries` gives Claude the habits + what runs out to plan the shopping (no in-app prediction on purpose)
 - `notes` — the family brain
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)

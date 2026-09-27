@@ -2,7 +2,7 @@
 // Older events without the tag are recognised by their title.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { dayKey } from "./dates";
-import type { EventOccurrence, Member } from "./types";
+import type { CareAvailability, EventOccurrence, Member } from "./types";
 
 export type CareKind = "dropoff" | "pickup";
 export const CARE_KINDS: CareKind[] = ["dropoff", "pickup"];
@@ -82,5 +82,33 @@ export async function assignSlot(
       for_member_id: kid.id,
       care: kind,
     })
+  ).error;
+}
+
+// Who said they can or can't, per day, between `from` and `to` (exclusive).
+export async function fetchAvailability(supabase: SupabaseClient, from: string, to: string) {
+  const { data } = await supabase.from("care_availability").select("kid_id, day, kind, member_id, available").gte("day", from).lt("day", to);
+  return (data ?? []) as CareAvailability[];
+}
+
+export const slotAvailability = (all: CareAvailability[], kid: Member, day: string, kind: CareKind) =>
+  all.filter((a) => a.kid_id === kid.id && a.day === day && a.kind === kind);
+
+// true = can, false = can't, null = hasn't said.
+export async function setAvailability(
+  supabase: SupabaseClient,
+  kid: Member,
+  day: string,
+  kind: CareKind,
+  memberId: string,
+  available: boolean | null,
+) {
+  if (available === null) {
+    return (await supabase.from("care_availability").delete().match({ kid_id: kid.id, day, kind, member_id: memberId })).error;
+  }
+  return (
+    await supabase
+      .from("care_availability")
+      .upsert({ kid_id: kid.id, day, kind, member_id: memberId, available, updated_at: new Date().toISOString() }, { onConflict: "kid_id,day,kind,member_id" })
   ).error;
 }

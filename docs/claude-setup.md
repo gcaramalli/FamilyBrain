@@ -6,7 +6,7 @@ tonight?") and it writes into the app: calendar, lists, recipes and notes.
 ## How it works
 
 The app exposes an MCP connector: 17 tools (get_events, add_event, add_to_list, check_off, log_purchase,
-log_receipt, dinner_ideas, send_gift, search_recipes, get_notes…). Send a photo of a receipt and Claude logs it. Claude calls them when you ask for something; it never browses the site and
+log_receipt, dinner_ideas, log_meal, get_meals, plan_groceries, send_gift, search_recipes, get_notes…). Send a photo of a receipt and Claude logs it. Claude calls them when you ask for something; it never browses the site and
 does nothing on its own unless you set up a scheduled routine.
 
 Each person has their **own link**, created in the app: it tells the connector who is talking and which

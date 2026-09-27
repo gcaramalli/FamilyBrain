@@ -7,16 +7,16 @@ import { CareSlot } from "@/components/care-slot";
 import { EventForm } from "@/components/event-form";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
-import { assignSlot, CARE_KINDS, findSlot, isCareDay } from "@/lib/care";
+import { assignSlot, CARE_KINDS, fetchAvailability, findSlot, isCareDay, setAvailability, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, fmtDate, startOfDay } from "@/lib/dates";
 import { fetchOccurrences } from "@/lib/events";
-import type { EventOccurrence, Member } from "@/lib/types";
+import type { CareAvailability, EventOccurrence, Member } from "@/lib/types";
 
 const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
 
 // Who takes the kids to preschool and who fetches them, planned week by week.
 export default function KidsPage() {
-  const { supabase, kids, t } = useFamily();
+  const { supabase, kids, me, t } = useFamily();
   const toast = useToast();
   const [kidId, setKidId] = useState<string | null>(kids[0]?.id ?? null);
   // Open on the week still to plan: after the last preschool day (e.g. on a
@@ -29,6 +29,7 @@ export default function KidsPage() {
   });
   const [events, setEvents] = useState<EventOccurrence[]>([]);
   const [upcoming, setUpcoming] = useState<EventOccurrence[]>([]);
+  const [answers, setAnswers] = useState<CareAvailability[]>([]);
   const [editing, setEditing] = useState<EventOccurrence | null>(null);
   const [settings, setSettings] = useState(false);
   const kid = kids.find((k) => k.id === kidId) ?? kids[0];
@@ -37,12 +38,14 @@ export default function KidsPage() {
   const load = useCallback(async () => {
     const start = new Date(weekKey + "T00:00:00");
     const today = startOfDay(new Date());
-    const [week, next] = await Promise.all([
+    const [week, next, said] = await Promise.all([
       fetchOccurrences(supabase, start, addDays(start, 7)),
       fetchOccurrences(supabase, today, addDays(today, 14)),
+      fetchAvailability(supabase, weekKey, dayKey(addDays(start, 7))),
     ]);
     setEvents(week);
     setUpcoming(next);
+    setAnswers(said);
   }, [supabase, weekKey]);
 
   useEffect(() => {
@@ -50,6 +53,7 @@ export default function KidsPage() {
     const channel = supabase
       .channel("kids-events")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "care_availability" }, load)
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -59,7 +63,7 @@ export default function KidsPage() {
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(new Date(weekKey + "T00:00:00"), i)), [weekKey]);
   const todayKey = dayKey(new Date());
 
-  // Slots in the next two weeks that nobody has taken yet.
+  // Slots in the next two weeks that nobody has confirmed yet.
   const open = useMemo(() => {
     if (!kid) return 0;
     let n = 0;
@@ -80,16 +84,35 @@ export default function KidsPage() {
     );
   }
 
+  // Everyone's "I can / I can't" carries over. Only my own "I'm going" is
+  // copied as confirmed: the other parent confirms theirs themselves.
   async function copyToNextWeek() {
     let copied = 0;
+    const nextStart = addDays(new Date(weekKey + "T00:00:00"), 7);
+    const [laterEvents, laterAnswers] = await Promise.all([
+      fetchOccurrences(supabase, nextStart, addDays(nextStart, 7)),
+      fetchAvailability(supabase, dayKey(nextStart), dayKey(addDays(nextStart, 7))),
+    ]);
     for (const d of days) {
       for (const kind of CARE_KINDS) {
-        const slot = findSlot(events, kid, dayKey(d), kind);
-        if (!slot?.responsible_member_id) continue;
+        const day = dayKey(d);
         const target = dayKey(addDays(d, 7));
-        const later = await fetchOccurrences(supabase, new Date(target + "T00:00:00"), addDays(new Date(target + "T00:00:00"), 1));
-        if (findSlot(later, kid, target, kind)) continue; // never overwrite a choice already made
-        if (!(await assignSlot(supabase, kid, target, kind, slot.responsible_member_id, null))) copied++;
+        const goer = findSlot(events, kid, day, kind)?.responsible_member_id ?? null;
+        const already = slotAvailability(laterAnswers, kid, target, kind);
+        // Never overwrite a choice already made.
+        const said = slotAvailability(answers, kid, day, kind)
+          .filter((a) => a.member_id !== goer)
+          .map((a) => ({ member_id: a.member_id, available: a.available }));
+        if (goer) said.push({ member_id: goer, available: true });
+        let changed = false;
+        for (const a of said) {
+          if (already.some((b) => b.member_id === a.member_id)) continue;
+          if (!(await setAvailability(supabase, kid, target, kind, a.member_id, a.available))) changed = true;
+        }
+        if (goer && goer === me?.id && !findSlot(laterEvents, kid, target, kind) && !already.some((b) => b.member_id === goer)) {
+          if (!(await assignSlot(supabase, kid, target, kind, goer, null))) changed = true;
+        }
+        if (changed) copied++;
       }
     }
     toast(copied ? t("Copied {n} to next week", { n: copied }) : t("Next week is already planned"));
@@ -148,7 +171,17 @@ export default function KidsPage() {
                 <div className="text-lg font-semibold tabular-nums">{d.getDate()}</div>
               </div>
               {CARE_KINDS.map((kind) => (
-                <CareSlot key={kind} kid={kid} day={k} kind={kind} event={findSlot(events, kid, k, kind)} past={k < todayKey} onChanged={load} onEdit={setEditing} />
+                <CareSlot
+                  key={kind}
+                  kid={kid}
+                  day={k}
+                  kind={kind}
+                  event={findSlot(events, kid, k, kind)}
+                  availability={slotAvailability(answers, kid, k, kind)}
+                  past={k < todayKey}
+                  onChanged={load}
+                  onEdit={setEditing}
+                />
               ))}
             </div>
           );
@@ -156,7 +189,7 @@ export default function KidsPage() {
         {shown.length === 0 && <p className="p-3 text-sm text-muted">{t("No preschool days this week.")}</p>}
       </section>
 
-      <p className="text-sm text-muted">{t("Tap a slot: you, then the other parent, then nobody. ⋯ changes the time or place.")}</p>
+      <p className="text-sm text-muted">{t("Tap a slot once if you can, twice if you can't. The one who goes taps “I'm going”. ⋯ changes the time or place.")}</p>
       <button className="btn-ghost py-3" onClick={copyToNextWeek}>{t("Copy this week to next week")}</button>
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={t("Edit event")}>
