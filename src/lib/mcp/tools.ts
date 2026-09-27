@@ -31,6 +31,9 @@ Routing:
   and balance the week: fill the food groups it lacks, e.g. fish, legumes, vegetables) and offer to add missing ingredients.
 - "We had salmon and potatoes tonight": log_meal (one call per meal; set food_groups yourself from what was on the
   plate; "yesterday lunch" → date + slot). "What did we eat this week?" / "is it balanced?": get_meals.
+- "What should we buy this week?" / "plan the week's meals": plan_groceries (eating habits, what runs out, what is already
+  on the list), check get_events for the week (trips, dinners out), then propose a few dinners that balance recent weeks
+  and the items to buy. Add to the shopping list only after they agree (add_to_list, skip what is already on it).
 - Receipt photo: read every line, then log_receipt with store, date and items. Use the family's usual item
   names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
@@ -803,6 +806,57 @@ export function registerTools(server: McpServer) {
       const name = (id: string) => members?.find((x) => x.id === id)?.name ?? "?";
       const meals = (data ?? []).map(({ member_ids, ...m }) => ({ ...m, who: member_ids.length ? member_ids.map(name) : "everyone" }));
       return text({ since, meals, food_group_counts: groupCounts(data ?? []) });
+    },
+  );
+
+  server.registerTool(
+    "plan_groceries",
+    {
+      title: "Plan groceries from habits",
+      description:
+        "Everything needed to anticipate the shopping: home-cooked meals of the last weeks (with recipe ingredients), dishes the family eats often, food groups per week, items probably running out, and what is already on the shopping list.",
+      inputSchema: z.object({
+        weeks: z.number().int().min(1).max(12).optional().describe("How far back to look at meals, default 4"),
+        within_days: z.number().int().min(1).max(30).optional().describe("Horizon for items running out, default 7"),
+      }),
+    },
+    async ({ weeks, within_days }) => {
+      const db = createAdminClient();
+      const w = weeks ?? 4;
+      const since = utcToStockholm(new Date(Date.now() - (w * 7 - 1) * 86400000).toISOString()).slice(0, 10);
+      const until = new Date(Date.now() + (within_days ?? 7) * 86400000).toISOString().slice(0, 10);
+      const [{ data: meals, error }, { data: recipes }, { data: due }, { data: listed }] = await Promise.all([
+        db.from("meals").select("eaten_on, slot, title, recipe_id, food_groups, place").eq("family_id", familyId()).gte("eaten_on", since).order("eaten_on"),
+        db.from("recipes").select("id, title, ingredients, favorite").eq("family_id", familyId()),
+        db.from("restock_suggestions").select("item_name, avg_interval_days, next_due_on").eq("family_id", familyId()).lte("next_due_on", until).order("next_due_on"),
+        db.from("list_items").select("title, quantity, lists!inner(kind)").eq("family_id", familyId()).eq("done", false).eq("lists.kind", "grocery"),
+      ]);
+      if (error) throw new Error(error.message);
+      const recipe = (id: string | null) => recipes?.find((r) => r.id === id);
+      const home = (meals ?? []).filter((m) => m.place === "home");
+      // Dishes eaten more than once: the family's habits.
+      const often = new Map<string, { title: string; times: number; last: string; ingredients: string[] }>();
+      for (const m of home) {
+        const r = recipe(m.recipe_id);
+        const key = (r?.title ?? m.title).trim().toLowerCase();
+        const cur = often.get(key) ?? { title: r?.title ?? m.title, times: 0, last: m.eaten_on, ingredients: r?.ingredients ?? [] };
+        often.set(key, { ...cur, times: cur.times + 1, last: m.eaten_on });
+      }
+      const counts = groupCounts(meals ?? []);
+      return text({
+        since,
+        meals_logged: meals?.length ?? 0,
+        note:
+          (meals?.length ?? 0) < 10
+            ? "Few meals logged so far: habits are not reliable yet. Lean on running_out and favourites, and say so."
+            : undefined,
+        home_meals: home.map((m) => ({ date: m.eaten_on, slot: m.slot, title: m.title, ingredients: recipe(m.recipe_id)?.ingredients })),
+        eaten_often: [...often.values()].filter((d) => d.times > 1).sort((a, b) => b.times - a.times),
+        food_groups_per_week: Object.fromEntries(Object.entries(counts).map(([g, n]) => [g, Math.round((n / w) * 10) / 10])),
+        favourite_recipes: (recipes ?? []).filter((r) => r.favorite).map((r) => ({ title: r.title, ingredients: r.ingredients })),
+        running_out: due ?? [],
+        already_on_list: (listed ?? []).map((l) => (l.quantity ? `${l.quantity} ${l.title}` : l.title)),
+      });
     },
   );
 
