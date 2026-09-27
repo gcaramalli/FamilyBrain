@@ -41,15 +41,9 @@ export default function ProfilePage() {
     router.refresh();
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    router.replace("/login");
-    router.refresh();
-  }
-
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader module="profile" back="/me" title={t("Profile")} />
+      <PageHeader module="profile" back="/settings" backLabel={t("Settings")} title={t("Personal settings")} />
 
       <form onSubmit={save} className="card flex flex-col gap-3">
         <div className="flex gap-2">
@@ -118,8 +112,6 @@ export default function ProfilePage() {
         <button className="btn">{t("Change password")}</button>
         {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
-
-      <button className="btn-ghost py-3 text-danger" onClick={signOut}>{t("Sign out")}</button>
     </div>
   );
 }

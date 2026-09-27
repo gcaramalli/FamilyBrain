@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
-import { PageHeader } from "@/components/page-header";
+import { StatsHeader } from "@/components/page-header";
 import { fmtDate, fmtDateTime } from "@/lib/dates";
 
 // Level 3 (super admin): usage across every family on Hembrain. Only counts
@@ -69,8 +69,8 @@ export default function StatsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <PageHeader module="stats" back="/me" title={t("Hembrain stats")} />
-        <p className="text-sm text-muted">{t("Counts and dates only, never a family's content.")}</p>
+        <StatsHeader />
+        <p className="mt-3 text-sm text-muted">{t("Counts and dates only, never a family's content.")}</p>
       </div>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3">

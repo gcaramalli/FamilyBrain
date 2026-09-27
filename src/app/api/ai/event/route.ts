@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aiEnabled, extract } from "@/lib/ai";
+import { aiEnabled, BudgetExceededError, extract } from "@/lib/ai";
 import { getSession } from "@/lib/session";
 
 const Draft = z.object({
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
 
   try {
     const draft = await extract(
+      { familyId: session.profile.family_id, profileId: session.profile.id, feature: "event" },
       Draft,
       `You turn one sentence into a family calendar event. The family: ${family}. The person typing is ${me}; "I"/"me"/"je"/"jag" means ${me}.
 Times are the family's local time (Europe/Stockholm). Resolve relative dates ("Thursday", "tomorrow", "demain", "på torsdag") to the next matching date from now. If no time is given for a drop-off or pick-up, use the child's usual time. Give timed events an end (30 minutes for drop-off/pick-up, 1 hour otherwise) unless one is stated. Use first names exactly as listed. Write the title in the language the sentence is written in.
@@ -46,6 +47,7 @@ Family notes: ${(notes ?? []).map((n) => `${n.title}: ${n.body}`).join(" | ").sl
     );
     return Response.json(draft);
   } catch (e) {
+    if (e instanceof BudgetExceededError) return Response.json({ error: e.message, budget: true }, { status: 402 });
     return Response.json({ error: e instanceof Error ? e.message : "failed" }, { status: 502 });
   }
 }

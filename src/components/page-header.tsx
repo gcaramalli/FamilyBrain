@@ -94,3 +94,19 @@ export function CalendarSegments() {
     />
   );
 }
+
+// Hembrain admin (super admins): usage across families, feedback, AI budgets.
+export function StatsHeader() {
+  const { t } = useFamily();
+  return (
+    <PageHeader module="stats" back="/settings" backLabel={t("Settings")} title={t("Hembrain admin")}>
+      <Segments
+        items={[
+          { href: "/stats", label: t("Usage") },
+          { href: "/stats/feedback", label: t("Feedback") },
+          { href: "/stats/ai", label: t("AI budget") },
+        ]}
+      />
+    </PageHeader>
+  );
+}

@@ -17,7 +17,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
-  const ME = ["/me", "/profile", "/connections", "/admin", "/stats", "/brain", "/work"];
+  // The Me tab is my own space; settings hang off the avatar, top right.
+  const ME = ["/me", "/brain", "/work"];
+  const SETTINGS = ["/settings", "/profile", "/connections", "/admin", "/feedback", "/stats"];
+  const inSettings = SETTINGS.some((p) => pathname.startsWith(p));
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
 
@@ -46,9 +49,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-10 flex items-center justify-between bg-background/85 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md">
           <Link href="/" className="text-sm font-medium tracking-tight text-muted">{family.name}</Link>
           <Link
-            href="/me"
-            aria-label={t("Me")}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
+            href="/settings"
+            aria-label={t("Settings")}
+            aria-current={inSettings ? "page" : undefined}
+            className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white ${inSettings ? "ring-2 ring-foreground ring-offset-2 ring-offset-background" : ""}`}
             style={{ background: me?.color ?? profile.color }}
           >
             {(profile.display_name || "?").slice(0, 1).toUpperCase()}

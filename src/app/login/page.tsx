@@ -1,20 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-// Email + password by default. The emailed 6-digit code stays as a fallback
-// (Supabase's built-in mailer only allows a few emails per hour).
+// Email + password by default. Forgot it: a 6-digit code (or the link) by
+// email signs you in, then you choose a new password.
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [mode, setMode] = useState<"password" | "code-email" | "code">("password");
+  const [mode, setMode] = useState<"password" | "code-email" | "code" | "new-password">("password");
+  const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Back from an email link that no longer works (/auth/callback).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("link") === "expired")
+      setError("That email link has expired or was opened in another browser. Ask for a new code below.");
+  }, []);
 
   function done() {
     router.replace("/");
@@ -37,11 +44,12 @@ export default function LoginPage() {
     setError(null);
     const { error } = await createClient().auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/callback?next=/profile` },
     });
     setBusy(false);
-    if (error) setError(error.message);
-    else setMode("code");
+    if (!error) return setMode("code");
+    // Supabase's built-in mailer allows only a few emails per hour.
+    setError(/rate limit|security purposes/i.test(error.message) ? "Too many emails sent. Wait a few minutes and try again." : error.message);
   }
 
   async function verify(e: React.FormEvent) {
@@ -49,6 +57,16 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     const { error } = await createClient().auth.verifyOtp({ email, token: code.trim(), type: "email" });
+    setBusy(false);
+    if (error) setError(/expired|invalid/i.test(error.message) ? "That code is wrong or expired. Ask for a new one." : error.message);
+    else setMode("new-password");
+  }
+
+  async function savePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await createClient().auth.updateUser({ password: newPassword });
     setBusy(false);
     if (error) setError(error.message);
     else done();
@@ -105,7 +123,9 @@ export default function LoginPage() {
 
       {mode === "code" && (
         <form onSubmit={verify} className="flex flex-col gap-3">
-          <p className="text-sm text-muted">Code sent to <b>{email}</b>.</p>
+          <p className="text-sm text-muted">
+            Code sent to <b>{email}</b>. Not there after a minute? Look in spam, or tap the link in the email instead.
+          </p>
           <input
             className="input text-center text-2xl tracking-[0.4em]"
             inputMode="numeric"
@@ -118,6 +138,26 @@ export default function LoginPage() {
           <button className="btn" disabled={busy}>{busy ? "Checking…" : "Sign in"}</button>
           <button type="button" className="text-sm text-muted" onClick={() => setMode("password")}>
             ← Back
+          </button>
+        </form>
+      )}
+
+      {mode === "new-password" && (
+        <form onSubmit={savePassword} className="flex flex-col gap-3">
+          <p className="text-sm text-muted">You&apos;re in. Choose a new password for next time.</p>
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="New password (at least 8 characters)"
+          />
+          <button className="btn" disabled={busy}>{busy ? "Saving…" : "Save and continue"}</button>
+          <button type="button" className="text-sm text-muted" onClick={done}>
+            Skip for now
           </button>
         </form>
       )}
