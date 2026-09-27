@@ -127,13 +127,13 @@ export function PrivateSpace() {
                 maxLength={80}
               />
             </div>
-            <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">
+            <div className="grid grid-cols-3 rounded-full bg-accent-soft p-1 text-sm">
               {(["list", "gifts", "note"] as const).map((k) => (
                 <button
                   type="button"
                   key={k}
                   onClick={() => setCreating({ ...creating, kind: k })}
-                  className={`min-h-9 rounded-lg ${creating.kind === k ? "bg-accent font-medium text-on-accent" : ""}`}
+                  className={`min-h-9 rounded-full ${creating.kind === k ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
                 >
                   {k === "list" ? t("List") : k === "gifts" ? t("Gifts") : t("Note")}
                 </button>

@@ -19,8 +19,9 @@ export function MemberBadge({ id }: { id: string | null }) {
   const m = memberById(id);
   if (!m) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs text-white" style={{ background: m.color }}>
-      {m.emoji} {m.name}
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+      <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: m.color }} />
+      {m.name}
     </span>
   );
 }

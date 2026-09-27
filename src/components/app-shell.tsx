@@ -49,24 +49,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ToastProvider>
       <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
-          <Link href="/" className="font-semibold tracking-tight">{family.name}</Link>
+        <header className="sticky top-0 z-10 flex items-center justify-between bg-background/85 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md">
+          <Link href="/" className="text-sm font-medium tracking-tight text-muted">{family.name}</Link>
           <Link
             href="/me"
             aria-label={t("Me")}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white"
             style={{ background: me?.color ?? profile.color }}
           >
             {(profile.display_name || "?").slice(0, 1).toUpperCase()}
           </Link>
         </header>
 
-        <main className="flex-1 px-4 pb-28 pt-4">{children}</main>
+        <main className="flex-1 px-4 pb-32 pt-2">{children}</main>
 
         <GiftInbox />
 
-        <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-          <ul className="mx-auto grid max-w-xl" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+        {/* Floating tab bar: a sheet of paper resting on the page. */}
+        <nav className="fixed inset-x-0 bottom-0 z-10 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <ul className="mx-auto grid max-w-xl rounded-[26px] bg-surface/95 px-1 backdrop-blur-md" style={{ boxShadow: "0 10px 30px -12px rgba(28,27,25,.28), 0 1px 2px rgba(28,27,25,.06)", border: "1px solid var(--edge)", gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
             {tabs.map((tab) => {
               const active = isActive(tab.href);
               return (
@@ -74,9 +75,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href={tab.href}
                     aria-current={active ? "page" : undefined}
-                    className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-semibold text-foreground" : "text-muted"}`}
+                    className={`flex flex-col items-center gap-0.5 py-1.5 text-[10.5px] ${active ? "font-semibold text-foreground" : "text-muted"}`}
                   >
-                    <span className={`flex h-8 w-12 items-center justify-center rounded-full transition-colors ${active ? "bg-accent-soft" : ""}`}>
+                    <span className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors ${active ? "bg-foreground text-background" : ""}`}>
                       {tab.icon}
                     </span>
                     <span className="max-w-full truncate px-0.5">{tab.label}</span>

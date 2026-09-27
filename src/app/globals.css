@@ -3,28 +3,33 @@
 :root {
   /* The interface stays ink-on-paper; colour belongs to the people
      (each member's colour marks what they do). */
-  --background: #f6f5f1;
+  --background: #f3f1ec;
   --surface: #ffffff;
-  --foreground: #1d1c1a;
-  --muted: #69665e;
-  --border: #e4e1da;
-  --accent: #1d1c1a;
+  --foreground: #1c1b19;
+  --muted: #6d695f;
+  --border: #e5e1d8;
+  --accent: #1c1b19;
   --on-accent: #ffffff;
-  --accent-soft: #eeece6;
+  --accent-soft: #eae7e0;
   --danger: #c2261d;
+  /* Surfaces float on paper instead of being outlined. */
+  --lift: 0 1px 1px rgba(28, 27, 25, 0.04), 0 6px 20px -10px rgba(28, 27, 25, 0.18);
+  --edge: transparent;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #121211;
-    --surface: #1c1c1a;
+    --background: #131312;
+    --surface: #1d1d1b;
     --foreground: #eeece7;
     --muted: #a19e95;
     --border: #2e2d2a;
     --accent: #eeece7;
-    --on-accent: #121211;
-    --accent-soft: #2a2926;
+    --on-accent: #131312;
+    --accent-soft: #292826;
     --danger: #f87171;
+    --lift: none;
+    --edge: #2a2927;
   }
 }
 
@@ -39,6 +44,7 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-fraunces);
 }
 
 body {
@@ -53,31 +59,38 @@ body {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-surface p-4;
+    @apply rounded-[22px] bg-surface p-4;
+    box-shadow: var(--lift);
+    border: 1px solid var(--edge);
   }
   .input {
-    @apply w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-base outline-none focus:border-accent;
+    @apply w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-base outline-none transition-colors focus:border-foreground;
   }
   .btn {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 font-medium text-on-accent active:opacity-80 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 font-medium text-on-accent transition-transform active:scale-[0.97] disabled:opacity-40;
   }
   .btn-ghost {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm active:opacity-70 disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-accent-soft px-4 py-2 text-sm font-medium transition-transform active:scale-[0.97] disabled:opacity-40;
   }
   .label {
     @apply mb-1 block text-sm text-muted;
   }
+  /* Titles in a soft serif: the family's notebook, not an admin panel. */
   .h1 {
-    @apply text-[1.75rem] leading-tight font-semibold tracking-tight text-balance;
+    @apply font-display text-[2rem] leading-[1.1] font-medium tracking-[-0.01em] text-balance;
+    font-variation-settings: "SOFT" 100, "opsz" 72;
   }
   .h2 {
-    @apply text-lg font-semibold;
+    @apply text-[1.05rem] font-semibold tracking-[-0.005em];
+  }
+  .eyebrow {
+    @apply text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted;
   }
   .chip-toggle {
-    @apply inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-sm;
+    @apply inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-3.5 text-sm transition-colors;
   }
   .chip-on {
-    @apply border-foreground bg-foreground text-background;
+    @apply bg-foreground text-background;
   }
   .chip {
     @apply inline-flex items-center rounded-full bg-accent-soft px-2 py-0.5 text-xs text-foreground;

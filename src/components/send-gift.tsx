@@ -24,7 +24,7 @@ export function SendGift() {
   const [to, setTo] = useState<string | null>(people.length === 1 ? people[0].profile_id : null);
   const [emoji, setEmoji] = useState("❤️");
   const [message, setMessage] = useState("");
-  const [sent, setSent] = useState<string | null>(null);
+  const [sent, setSent] = useState<{ id: string; name: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   if (people.length === 0) return null;
@@ -32,20 +32,45 @@ export function SendGift() {
   async function send() {
     if (!to) return;
     setBusy(true);
-    const { error } = await supabase.from("gifts").insert({ to_profile: to, emoji, message: message.trim() || null });
+    const { data, error } = await supabase.from("gifts").insert({ to_profile: to, emoji, message: message.trim() || null }).select("id").single();
     setBusy(false);
-    if (error) return toast(error.message);
-    setSent(people.find((p) => p.profile_id === to)?.name ?? "");
-    setMessage("");
+    if (error || !data) return toast(error?.message ?? t("Could not send"));
+    setSent({ id: data.id, name: people.find((p) => p.profile_id === to)?.name ?? "" });
+  }
+
+  // Regret: take it back, as long as it hasn't been unwrapped. The note is kept
+  // in the field so it can be fixed and sent again.
+  async function takeBack() {
+    if (!sent) return;
+    const { data } = await supabase.from("gifts").delete().eq("id", sent.id).is("opened_at", null).select("id");
+    if (data?.length) {
+      setSent(null);
+      toast(t("Taken back. {name} will never know.", { name: sent.name }));
+    } else {
+      toast(t("Too late, {name} already unwrapped it.", { name: sent.name }));
+      setSent(null);
+      setMessage("");
+    }
   }
 
   if (sent) {
     return (
       <section className="card text-center">
         <div className="animate-gift-pop text-5xl">💌</div>
-        <p className="mt-2 font-medium">{t("Sent to {name}!", { name: sent })}</p>
+        <p className="mt-2 font-medium">{t("Sent to {name}!", { name: sent.name })}</p>
         <p className="text-sm text-muted">{t("They'll unwrap it next time they open Hembrain.")}</p>
-        <button className="mt-3 min-h-9 text-sm text-accent" onClick={() => setSent(null)}>{t("Send another")}</button>
+        <div className="mt-3 flex justify-center gap-4">
+          <button className="min-h-9 text-sm text-muted underline" onClick={takeBack}>{t("Take it back")}</button>
+          <button
+            className="min-h-9 text-sm font-medium"
+            onClick={() => {
+              setSent(null);
+              setMessage("");
+            }}
+          >
+            {t("Send another")}
+          </button>
+        </div>
       </section>
     );
   }
@@ -72,7 +97,7 @@ export function SendGift() {
             key={g.emoji}
             title={t(g.hint)}
             onClick={() => setEmoji(g.emoji)}
-            className={`rounded-xl py-2 text-2xl ${emoji === g.emoji ? "bg-accent-soft ring-2 ring-foreground" : ""}`}
+            className={`rounded-xl py-2 text-2xl transition-transform ${emoji === g.emoji ? "scale-110 bg-accent-soft" : "opacity-70"}`}
           >
             {g.emoji}
           </button>

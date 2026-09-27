@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPin, Repeat } from "lucide-react";
 import { useFamily } from "./family-context";
 import { MemberBadge } from "./member-select";
 import { formatTime } from "@/lib/dates";
@@ -38,9 +39,13 @@ export function EventRow({ ev, day, onClick }: { ev: EventOccurrence; day?: stri
         <div className="font-medium">
           {ev.badge && `${ev.badge} `}
           {title}
-          {ev.recurrence && <span className="ml-1 text-xs text-muted" title={t("Repeats")}>🔁</span>}
+          {ev.recurrence && <Repeat size={12} className="ml-1.5 inline text-muted" aria-label={t("Repeats")} />}
         </div>
-        {ev.location && <div className="truncate text-sm text-muted">📍 {ev.location}</div>}
+        {ev.location && (
+          <div className="flex items-center gap-1 truncate text-sm text-muted">
+            <MapPin size={12} className="shrink-0" /> {ev.location}
+          </div>
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <MemberBadge id={ev.responsible_member_id} />
           {ev.for_member_id && ev.for_member_id !== ev.responsible_member_id && (

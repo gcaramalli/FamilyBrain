@@ -27,7 +27,7 @@ export function PageHeader({
       )}
       <div className="flex min-h-11 items-center justify-between gap-3">
         <h1 className="h1 min-w-0">{title}</h1>
-        {action && <div className="flex shrink-0 gap-2">{action}</div>}
+        {action && <div className="flex shrink-0 gap-2 [&_.btn]:min-h-10 [&_.btn]:px-4 [&_.btn]:text-sm">{action}</div>}
       </div>
       {children}
     </div>
@@ -38,7 +38,7 @@ export function PageHeader({
 export function Segments({ items }: { items: { href: string; label: string }[] }) {
   const pathname = usePathname();
   return (
-    <nav className="grid rounded-xl border border-border bg-surface p-0.5 text-sm" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    <nav className="grid rounded-full bg-accent-soft p-1 text-sm" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
       {items.map((x) => {
         const active = pathname === x.href;
         return (
@@ -46,7 +46,7 @@ export function Segments({ items }: { items: { href: string; label: string }[] }
             key={x.href}
             href={x.href}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-9 items-center justify-center truncate rounded-lg px-1 ${active ? "bg-accent font-medium text-on-accent" : ""}`}
+            className={`flex min-h-9 items-center justify-center truncate rounded-full px-1 transition-colors ${active ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
           >
             {x.label}
           </Link>

@@ -160,7 +160,7 @@ export default function KidsPage() {
       </div>
 
       <section className="card flex flex-col gap-1 p-2">
-        <div className="grid grid-cols-[3.25rem_1fr_1fr] gap-2 px-1 pb-1 text-xs uppercase tracking-wide text-muted">
+        <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-1 pb-1 text-xs uppercase tracking-wide text-muted">
           <span />
           <span className="flex items-center gap-1"><Sun size={12} /> {t("Morning")}</span>
           <span className="flex items-center gap-1"><Moon size={12} /> {t("Afternoon")}</span>
@@ -168,7 +168,7 @@ export default function KidsPage() {
         {shown.map((d) => {
           const k = dayKey(d);
           return (
-            <div key={k} className={`grid grid-cols-[3.25rem_1fr_1fr] items-center gap-2 rounded-xl p-1 ${k === todayKey ? "bg-accent-soft" : ""}`}>
+            <div key={k} className={`grid grid-cols-[3.25rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-xl p-1 ${k === todayKey ? "bg-accent-soft" : ""}`}>
               <div className="text-center leading-tight">
                 <div className="text-xs uppercase text-muted">{fmtDate(d, { weekday: "short" })}</div>
                 <div className="text-lg font-semibold tabular-nums">{d.getDate()}</div>

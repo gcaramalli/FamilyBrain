@@ -259,7 +259,7 @@ export default function ListsPage() {
 
 
           {isGrocery && suggestions.length > 0 && (
-            <section className="card border-dashed">
+            <section className="rounded-[22px] border border-dashed border-border p-4">
               <h2 className="flex items-center gap-1.5 font-semibold"><Sparkles size={16} /> {t("Probably needed soon")}</h2>
               <p className="mb-2 text-xs text-muted">{t("Based on how often you buy these. Tap to add.")}</p>
               <div className="flex flex-wrap gap-2">
@@ -279,20 +279,22 @@ export default function ListsPage() {
           {open.length === 0 ? (
             <p className="card text-sm text-muted">{t("All done")} 🎉</p>
           ) : (
-            groups.map((g) => (
-              <section key={g.id} className="card py-1">
-                {g.label && (
-                  <h3 className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    {g.emoji} {t(g.label)}
-                  </h3>
-                )}
-                <ul className="divide-y divide-border">
-                  {g.items.map((i) => (
-                    <ItemRow key={i.id} item={i} onToggle={toggle} onEdit={setEditing} />
-                  ))}
-                </ul>
-              </section>
-            ))
+            <div className="card flex flex-col gap-3 py-3">
+              {groups.map((g) => (
+                <section key={g.id}>
+                  {g.label && (
+                    <h3 className="eyebrow pt-1">
+                      {g.emoji} {t(g.label)}
+                    </h3>
+                  )}
+                  <ul className="divide-y divide-border">
+                    {g.items.map((i) => (
+                      <ItemRow key={i.id} item={i} onToggle={toggle} onEdit={setEditing} />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
           )}
 
           {done.length > 0 && (
@@ -418,7 +420,7 @@ function ItemRow({ item, onToggle, onEdit }: { item: ListItem; onToggle: (i: Lis
         aria-label={item.done ? t("Uncheck") : t("Check")}
         className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center"
       >
-        <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${item.done ? "border-foreground bg-foreground text-background" : "border-muted"}`}>
+        <span className={`flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] ${item.done ? "border-foreground bg-foreground text-background" : "border-muted/60"}`}>
           {item.done && "✓"}
         </span>
       </button>

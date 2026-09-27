@@ -72,9 +72,9 @@ export default function BrainPage() {
         title={t("Family brain")}
         action={tab === "notes" && <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>}
       />
-      <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
+      <div className="grid grid-cols-2 rounded-full bg-accent-soft p-1 text-sm">
         {(["notes", "dates"] as const).map((x) => (
-          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
+          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-full ${tab === x ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}>
             {x === "notes" ? t("Notes") : t("Dates")}
           </button>
         ))}
