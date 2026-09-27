@@ -223,6 +223,8 @@ function ItemRow({
   const project = data.projects.find((p) => p.id === item.project_id);
   const meeting = data.meetings.find((m) => m.id === item.meeting_id);
   const kind = WORK_KINDS.find((k) => k.id === item.kind);
+  // Past its due date and not done (waiting ones too: they owe it).
+  const late = item.status !== "done" && !!item.due_date && item.due_date < dayKey(new Date());
 
   function tick() {
     if (item.status === "done") update(item, { status: item.waiting_since ? "waiting" : "open", done_at: null }, t("Reopened"));
@@ -236,7 +238,7 @@ function ItemRow({
     <li className="flex min-h-12 items-center gap-3 py-1">
       <button onClick={tick} aria-label={t("Mark as done")} className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center">
         <span
-          className={`flex h-5 w-5 items-center justify-center border-[1.5px] text-xs ${item.kind === "todo" ? "rounded-md" : "rounded-full"} ${item.status === "done" ? "border-foreground bg-foreground text-background" : "border-foreground/60"}`}
+          className={`flex h-5 w-5 items-center justify-center border-[1.5px] text-xs ${item.kind === "todo" ? "rounded-md" : "rounded-full"} ${item.status === "done" ? "border-foreground bg-foreground text-background" : late ? "border-danger" : "border-foreground/60"}`}
         >
           {item.status === "done" ? "✓" : ""}
         </span>
@@ -252,7 +254,12 @@ function ItemRow({
           {project && !hide.includes("project") && <span>#{project.name}</span>}
           {meeting && !hide.includes("meeting") && <span>#{meeting.name}</span>}
           {item.status === "waiting" && item.waiting_since && <span className="font-medium">{t("waiting {n} d", { n: daysSince(item.waiting_since) })}</span>}
-          {item.due_date && <span>{fmtDate(`${item.due_date}T12:00:00`, { day: "numeric", month: "short" })}</span>}
+          {item.due_date && (
+            <span className={late ? "font-semibold text-danger" : ""}>
+              {fmtDate(`${item.due_date}T12:00:00`, { day: "numeric", month: "short" })}
+              {late && ` · ${t("late")}`}
+            </span>
+          )}
           {item.status !== "done" && item.not_before && item.not_before > dayKey(new Date()) && (
             <span>{t("from {date}", { date: fmtDate(`${item.not_before}T12:00:00`, { weekday: "short", day: "numeric", month: "short" }) })}</span>
           )}

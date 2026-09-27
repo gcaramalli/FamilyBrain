@@ -127,6 +127,7 @@ function workItemOut(i: WorkItem, w: Work) {
     project: name(w.projects, i.project_id),
     meeting: name(w.meetings, i.meeting_id),
     due: i.due_date,
+    late: (i.status !== "done" && !!i.due_date && i.due_date < workToday()) || undefined,
     not_before: i.not_before,
     waiting_since: i.waiting_since?.slice(0, 10) ?? null,
     done_on: i.done_at?.slice(0, 10) ?? null,
