@@ -1,6 +1,6 @@
 "use client";
 
-import { ModuleIcon } from "@/components/module-icon";
+import { CalendarSegments, PageHeader } from "@/components/page-header";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
@@ -123,12 +123,16 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="h1 flex items-center gap-3"><ModuleIcon id="calendar" size={36} />{t("Calendar")}</h1>
-        <button className="btn min-h-10 px-4 text-sm" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>
-      </div>
+      <PageHeader
+        title={t("Calendar")}
+        module="calendar"
+        action={<button className="btn" onClick={() => setEditing(newEventDraft(focus ? new Date(focus + "T00:00:00") : undefined, me))}>+ {t("Event")}</button>}
+      >
+        <CalendarSegments />
+      </PageHeader>
 
-      <div className="grid grid-cols-3 rounded-xl border border-border bg-surface p-0.5 text-sm">
+      {/* How to look at it: chips, lighter than the section switch above. */}
+      <div className="flex gap-2">
         {(["month", "week", "agenda"] as Mode[]).map((m) => (
           <button
             key={m}
@@ -136,7 +140,7 @@ export default function CalendarPage() {
               setFocus(null);
               setMode(m);
             }}
-            className={`min-h-9 rounded-lg px-2 ${mode === m ? "bg-accent font-medium text-on-accent" : ""}`}
+            className={`chip-toggle ${mode === m ? "chip-on" : ""}`}
           >
             {m === "month" ? t("Month") : m === "week" ? t("Week") : t("Agenda")}
           </button>

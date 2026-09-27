@@ -19,24 +19,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
   const ME = ["/me", "/profile", "/connections", "/admin", "/stats", "/brain"];
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
+    href === "/" ? pathname === "/" : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
 
   // The Kids tab only shows up for families with a child, in the middle.
   const tabs = [
-    { href: "/", label: t("Today"), icon: "🏠", color: MODULES.today.color },
-    { href: "/calendar", label: t("Calendar"), icon: "📅", color: MODULES.calendar.color },
+    { href: "/", label: t("Today"), Icon: MODULES.today.Icon, color: MODULES.today.color },
+    { href: "/calendar", label: t("Calendar"), Icon: MODULES.calendar.Icon, color: MODULES.calendar.color },
     ...(kids.length
       ? [
           {
             href: "/kids",
             label: kids.length === 1 ? kids[0].name : t("Kids"),
-            color: kids[0].color,
-            icon: kids.length === 1 ? kids[0].emoji : "👶",
+            // The kid's tab wears the kid's own colour.
+            color: kids.length === 1 ? kids[0].color : MODULES.kids.color,
+            Icon: MODULES.kids.Icon,
           },
         ]
       : []),
-    { href: "/lists", label: t("Kitchen"), icon: "🍳", color: MODULES.kitchen.color },
-    { href: "/me", label: t("Me"), icon: "👤", color: MODULES.me.color },
+    { href: "/lists", label: t("Kitchen"), Icon: MODULES.kitchen.Icon, color: MODULES.kitchen.color },
+    { href: "/me", label: t("Me"), Icon: MODULES.me.Icon, color: MODULES.me.color },
   ];
 
   return (
@@ -54,14 +55,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
-        <main className="flex-1 px-4 pb-28 pt-2">{children}</main>
+        <main className="flex-1 px-4 pb-32 pt-2">{children}</main>
 
         <GiftInbox />
 
-        {/* Tab bar anchored to the bottom edge, content blurs behind it; the
-            active tab lights up in its module colour. */}
-        <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-          <ul className="mx-auto grid max-w-xl px-1" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+        {/* Floating, rounded tab bar with coloured duotone icons. The page fades
+            out into the background under it, so nothing peeks through the gap. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-[calc(6rem+env(safe-area-inset-bottom))]"
+          style={{ background: "linear-gradient(to top, var(--background) 55%, transparent)" }}
+        />
+        <nav className="fixed inset-x-0 bottom-0 z-10 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <ul
+            className="mx-auto grid max-w-xl rounded-[26px] bg-surface/90 px-1 backdrop-blur-xl"
+            style={{ boxShadow: "0 10px 30px -12px rgba(20,24,34,.35), 0 1px 2px rgba(20,24,34,.08)", border: "1px solid var(--edge)", gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+          >
             {tabs.map((tab) => {
               const active = isActive(tab.href);
               return (
@@ -69,13 +78,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Link
                     href={tab.href}
                     aria-current={active ? "page" : undefined}
-                    className={`flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-[10.5px] ${active ? "font-semibold text-foreground" : "text-muted"}`}
+                    className={`flex flex-col items-center gap-0.5 py-1.5 text-[10.5px] ${active ? "font-semibold text-foreground" : "text-muted"}`}
                   >
                     <span
-                      className={`flex h-8 w-14 items-center justify-center rounded-full text-xl leading-none transition-colors ${active ? "" : "opacity-75 grayscale-[35%]"}`}
-                      style={active ? { background: `color-mix(in srgb, ${tab.color} 20%, transparent)`, color: tab.color } : undefined}
+                      className="flex h-8 w-14 items-center justify-center rounded-full transition-colors"
+                      style={{ color: tab.color, background: active ? `color-mix(in srgb, ${tab.color} 20%, transparent)` : undefined }}
                     >
-                      {tab.icon}
+                      <tab.Icon size={21} strokeWidth={2.25} fill="currentColor" fillOpacity={active ? 0.3 : 0.18} />
                     </span>
                     <span className="max-w-full truncate px-0.5">{tab.label}</span>
                   </Link>

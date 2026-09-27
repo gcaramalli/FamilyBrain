@@ -488,4 +488,12 @@ export const fr: Record<string, string> = {
   "Taken back. {name} will never know.": "Repris. {name} n'en saura rien.",
   "Too late, {name} already unwrapped it.": "Trop tard, {name} l'a déjà ouvert.",
   "Take it back": "Reprendre",
+  // To-do in Calendar
+  "Create a to-do list": "Créer une liste de choses à faire",
+  "Create a shopping list": "Créer une liste de courses",
+  "Name, e.g. Weekend chores": "Nom, ex. Tâches du week-end",
+  "Name, e.g. IKEA": "Nom, ex. IKEA",
+  "Nothing left to do": "Rien à faire",
+  "1 thing to do": "1 chose à faire",
+  "{n} things to do": "{n} choses à faire",
 };

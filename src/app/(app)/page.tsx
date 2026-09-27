@@ -20,6 +20,7 @@ export default function TodayPage() {
   const [events, setEvents] = useState<EventOccurrence[]>([]);
   const [answers, setAnswers] = useState<CareAvailability[]>([]);
   const [openCount, setOpenCount] = useState<number | null>(null);
+  const [todoCount, setTodoCount] = useState<number | null>(null);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
 
   const loadEvents = useCallback(async () => {
@@ -47,6 +48,12 @@ export default function TodayPage() {
       .eq("done", false)
       .eq("lists.kind", "grocery")
       .then(({ count }) => setOpenCount(count ?? 0));
+    supabase
+      .from("list_items")
+      .select("id, lists!inner(kind)", { count: "exact", head: true })
+      .eq("done", false)
+      .eq("lists.kind", "todo")
+      .then(({ count }) => setTodoCount(count ?? 0));
     supabase
       .from("restock_suggestions")
       .select("*")
@@ -95,6 +102,12 @@ export default function TodayPage() {
 
       <nav className="grid grid-cols-2 gap-3">
         <HubTile
+          href="/todo"
+          module="todo"
+          title={t("To-do")}
+          sub={todoCount === null ? "…" : todoCount === 0 ? t("Nothing left to do") : todoCount === 1 ? t("1 thing to do") : t("{n} things to do", { n: todoCount })}
+        />
+        <HubTile
           href="/lists"
           module="shopping"
           title={t("Shopping")}
@@ -103,6 +116,7 @@ export default function TodayPage() {
             (restock.length > 0 ? ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}` : "")
           }
         />
+        <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
         <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
       </nav>
 

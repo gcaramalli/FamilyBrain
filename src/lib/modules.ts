@@ -1,10 +1,12 @@
-import { Bell, Brain, CalendarDays, ChartColumn, ChefHat, CookingPot, House, Lock, Receipt, Settings, ShoppingCart, UserRound, Utensils, type LucideIcon } from "lucide-react";
+import { Baby, Bell, Brain, CalendarDays, ChartColumn, ChefHat, CookingPot, House, ListChecks, Lock, Receipt, Settings, ShoppingCart, UserRound, Utensils, type LucideIcon } from "lucide-react";
 
 // Each part of the app has its own hue, used only to find your way (tab icons,
 // hub tiles, page titles). Data about people keeps the people's colours.
 export const MODULES = {
   today: { color: "#5b8def", Icon: House },
   calendar: { color: "#9b7bf0", Icon: CalendarDays },
+  todo: { color: "#3fbf7f", Icon: ListChecks },
+  kids: { color: "#f5904a", Icon: Baby },
   kitchen: { color: "#f2b441", Icon: CookingPot },
   shopping: { color: "#f2b441", Icon: ShoppingCart },
   meals: { color: "#4f9bf5", Icon: Utensils },

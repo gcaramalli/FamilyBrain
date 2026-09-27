@@ -61,7 +61,7 @@ Rules of thumb:
 - `members` also hold kids' usual `dropoff_time`, `pickup_time`, `care_place`, `care_days` (ISO weekdays)
 - `care_availability` — per kid/day/`kind`/parent: `available` true ("I can") or false ("I can't"), no row = hasn't said. The one who goes confirms ("I'm going") = the care event's `responsible_member_id` (`src/components/care-slot.tsx`)
 - `push_subscriptions` — one row per device with reminders on (own rows only)
-- `lists` (`kind` grocery/todo) and `list_items` (`category` = aisle id from `src/lib/categories.ts`)
+- `lists` (`kind` grocery → Kitchen, todo → Calendar → To-do; both rendered by `src/components/lists-view.tsx`) and `list_items` (`category` = aisle id from `src/lib/categories.ts`)
 - `purchases` — auto-filled by a trigger when a grocery item is checked off (skipped if the item was logged <10 min ago); `source` list/manual/receipt, `store`, `price`
 - `restock_suggestions` — view: average interval between purchases → `next_due_on` (needs ≥2 purchases)
 - `recipes` — `ingredients text[]`, `tags text[]`, `favorite`, `kid_friendly`
@@ -91,8 +91,8 @@ Rules of thumb:
   `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
-- Navigation: five tabs, one job each — Today, Calendar, the kid (if any), Kitchen (`/lists`, `/meals`, `/recipes`,
-  `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
+- Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
+  the kid (if any), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what
   they set (kid's routine and profile in the kid tab ⚙️, list rename/delete in the list's ⋯).
 - UI text: wrap every string in `t("English text")` from `useFamily()`, then add French and Swedish in
@@ -102,8 +102,9 @@ Rules of thumb:
   (`src/lib/modules.ts`) used only to find your way — tab bar, `HubTile`s, `ModuleIcon` next to page titles.
   Buttons and text stay ink. Dark mode is night blue.
 - Look: bold Geist titles, surfaces float on the page (`--lift` shadow, no outline), pill buttons, segmented
-  controls as a pill on a soft track, tab bar anchored to the bottom (blurred, emoji icons). A person shows as a dot in their colour + name (`MemberBadge`).
-- Icons: `lucide-react` line icons for the interface (buttons, section titles); emoji for the five tabs and for what
+  controls as a pill on a soft track, floating rounded tab bar with coloured duotone icons,
+  the page fading into the background beneath it. A person shows as a dot in their colour + name (`MemberBadge`).
+- Icons: `lucide-react` line icons for the interface (tabs, buttons, section titles); emoji only for what
   people choose themselves (a kid's emoji, private tiles, gifts).
 - Optional server env: `ANTHROPIC_API_KEY` (receipt scan + "type it" event entry, `src/lib/ai.ts`),
   `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (reminders, `src/lib/push.ts`) and `CRON_SECRET`

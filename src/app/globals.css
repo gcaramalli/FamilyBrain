@@ -15,6 +15,8 @@
   /* Surfaces float on paper instead of being outlined. */
   --lift: 0 1px 1px rgba(28, 27, 25, 0.04), 0 6px 20px -10px rgba(28, 27, 25, 0.18);
   --edge: transparent;
+  /* The selected pill of a segmented control. */
+  --pill: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -31,6 +33,7 @@
     --danger: #f87171;
     --lift: none;
     --edge: transparent;
+    --pill: #33405a;
   }
 }
 
