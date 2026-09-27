@@ -9,7 +9,7 @@ import { ToastProvider } from "./toast";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { profile, family, kids, me, t } = useFamily();
+  const { profile, family, kids, me, t, superAdmin } = useFamily();
   // Service worker: needed for reminders (push notifications).
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -32,6 +32,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <Link href="/" className="font-semibold tracking-tight">{family.name}</Link>
           <div className="flex items-center gap-2">
+            {superAdmin && (
+              <Link href="/stats" aria-label={t("Stats")} className={`btn-ghost ${pathname.startsWith("/stats") ? "border-foreground" : ""}`}>
+                📊
+              </Link>
+            )}
             {profile.role === "admin" && (
               <Link href="/admin" aria-label={t("Admin")} className={`btn-ghost ${pathname.startsWith("/admin") ? "border-foreground" : ""}`}>
                 ⚙️ {t("Admin")}

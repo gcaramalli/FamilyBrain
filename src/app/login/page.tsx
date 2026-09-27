@@ -126,6 +126,8 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-muted">
         New here? <Link href="/signup" className="text-accent">Create a family</Link>
+        {" · "}
+        <Link href="/welcome" className="text-accent">What is Hembrain?</Link>
       </p>
     </main>
   );
