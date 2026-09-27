@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "./family-context";
-import { Sheet } from "./sheet";
 import { fmtDate } from "@/lib/dates";
 
 type Purchase = { id: string; item_name: string; purchased_at: string; source: string; store: string | null; price: number | null };
@@ -11,7 +10,6 @@ type Purchase = { id: string; item_name: string; purchased_at: string; source: s
 // receipt). Feeds the "running out soon" prediction.
 export function Purchases({ refreshKey }: { refreshKey?: number }) {
   const { supabase, t } = useFamily();
-  const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<Purchase[]>([]);
   const [bought, setBought] = useState("");
 
@@ -25,8 +23,8 @@ export function Purchases({ refreshKey }: { refreshKey?: number }) {
   }, [supabase]);
 
   useEffect(() => {
-    if (open) load();
-  }, [open, load, refreshKey]);
+    load();
+  }, [load, refreshKey]);
 
   async function log(e: React.FormEvent) {
     e.preventDefault();
@@ -45,34 +43,29 @@ export function Purchases({ refreshKey }: { refreshKey?: number }) {
   const source = (p: Purchase) => p.store ?? (p.source === "list" ? t("from the list") : p.source === "receipt" ? t("receipt") : t("logged by hand"));
 
   return (
-    <>
-      <button className="btn-ghost" onClick={() => setOpen(true)}>🧾 {t("Purchases")}</button>
-      <Sheet open={open} onClose={() => setOpen(false)} title={t("Purchases")}>
-        <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
           <form onSubmit={log} className="flex gap-2">
             <input className="input" placeholder={t("I just bought… (toothpaste)")} value={bought} onChange={(e) => setBought(e.target.value)} />
-            <button className="btn">{t("Log")}</button>
-          </form>
-          <p className="text-xs text-muted">{t("Checked-off shopping items land here automatically. Log what you buy outside the list so the app learns how often you need it.")}</p>
-          {[...days.entries()].map(([day, list]) => (
-            <section key={day}>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{fmtDate(day + "T12:00:00", { weekday: "short", day: "numeric", month: "short" })}</h3>
-              <ul className="divide-y divide-border text-sm">
-                {list.map((p) => (
-                  <li key={p.id} className="flex justify-between gap-3 py-1.5">
-                    <span>{p.item_name}</span>
-                    <span className="shrink-0 tabular-nums text-muted">
-                      {source(p)}
-                      {p.price != null && ` · ${p.price} kr`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-          {rows.length === 0 && <p className="text-sm text-muted">{t("Nothing logged yet.")}</p>}
-        </div>
-      </Sheet>
-    </>
+        <button className="btn">{t("Log")}</button>
+      </form>
+      <p className="text-xs text-muted">{t("Checked-off shopping items land here automatically. Log what you buy outside the list so the app learns how often you need it.")}</p>
+      {[...days.entries()].map(([day, list]) => (
+        <section key={day}>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">{fmtDate(day + "T12:00:00", { weekday: "short", day: "numeric", month: "short" })}</h3>
+          <ul className="divide-y divide-border text-sm">
+            {list.map((p) => (
+              <li key={p.id} className="flex justify-between gap-3 py-1.5">
+                <span>{p.item_name}</span>
+                <span className="shrink-0 tabular-nums text-muted">
+                  {source(p)}
+                  {p.price != null && ` · ${p.price} kr`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {rows.length === 0 && <p className="text-sm text-muted">{t("Nothing logged yet.")}</p>}
+</div>
   );
 }

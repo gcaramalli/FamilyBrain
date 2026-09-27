@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { OccasionsPanel } from "@/components/occasions-panel";
+import { PageHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import type { Note } from "@/lib/types";
@@ -65,10 +66,11 @@ export default function BrainPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="h1">{t("Family brain")}</h1>
-        {tab === "notes" && <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>}
-      </div>
+      <PageHeader
+        back="/me"
+        title={t("Family brain")}
+        action={tab === "notes" && <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>}
+      />
       <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
         {(["notes", "dates"] as const).map((x) => (
           <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
@@ -77,7 +79,6 @@ export default function BrainPage() {
         ))}
       </div>
       {tab === "dates" ? <OccasionsPanel /> : <>
-      <p className="text-sm text-muted">{t("Everything worth remembering: pickup rules, allergies, sizes, contacts, codes.")}</p>
       <input className="input" placeholder={t("Search…")} value={q} onChange={(e) => setQ(e.target.value)} />
 
       <ul className="grid gap-3">

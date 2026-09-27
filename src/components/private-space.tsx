@@ -18,7 +18,7 @@ type Draft = Pick<PrivateBoard, "emoji" | "title" | "kind">;
 
 // My own corner: tiles of to-dos, notes and ideas (Christmas presents…) that
 // nobody else in the family sees. Not read by the Claude connector either.
-export default function PrivatePage() {
+export function PrivateSpace() {
   const { supabase, t } = useFamily();
   const toast = useToast();
   const [boards, setBoards] = useState<PrivateBoard[] | null>(null);
@@ -66,12 +66,14 @@ export default function PrivatePage() {
   const unused = SUGGESTED.filter((s) => !boards?.some((b) => b.title === t(s.title)));
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="h1">🔒 {t("Private")}</h1>
-        <button className="btn" onClick={() => setCreating({ emoji: "📝", title: "", kind: "list" })}>+ {t("Tile")}</button>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="h2">{t("Private")}</h2>
+          <p className="text-sm text-muted">{t("Only you can see this.")}</p>
+        </div>
+        <button className="btn-ghost" onClick={() => setCreating({ emoji: "📝", title: "", kind: "list" })}>+ {t("Tile")}</button>
       </div>
-      <p className="text-sm text-muted">{t("Only you can see this space, not the rest of the family.")}</p>
 
       {boards && (
         <div className="grid grid-cols-2 gap-3">
@@ -79,7 +81,7 @@ export default function PrivatePage() {
             // No preview of the content: someone may be looking over my shoulder.
             const left = items.filter((i) => i.board_id === b.id && !i.done).length;
             return (
-              <button key={b.id} onClick={() => setOpenId(b.id)} className="card flex min-h-28 flex-col gap-1 p-3 text-left">
+              <button key={b.id} onClick={() => setOpenId(b.id)} className="card flex min-h-20 flex-col gap-1 p-3 text-left">
                 <span className="text-2xl leading-none">{b.emoji}</span>
                 <span className="line-clamp-2 font-medium">{b.title}</span>
                 {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
@@ -90,7 +92,7 @@ export default function PrivatePage() {
             <button
               key={s.title}
               onClick={() => create({ ...s, title: t(s.title) })}
-              className="flex min-h-28 flex-col gap-1 rounded-2xl border border-dashed border-border p-3 text-left text-muted"
+              className="flex min-h-20 flex-col gap-1 rounded-2xl border border-dashed border-border p-3 text-left text-muted"
             >
               <span className="text-2xl leading-none opacity-60">{s.emoji}</span>
               <span className="font-medium">+ {t(s.title)}</span>
@@ -153,7 +155,7 @@ export default function PrivatePage() {
           />
         )}
       </Sheet>
-    </div>
+    </section>
   );
 }
 

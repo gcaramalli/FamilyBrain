@@ -37,7 +37,7 @@ const STEPS = [
   { title: "Create your family", body: "Choose a family name, then enter your first name, email and a password. You become the family's admin." },
   { title: "Confirm and sign in", body: "If we send you a confirmation email, open the link, then sign in." },
   { title: "Add your people", body: "In the Admin tab, add the children (they don't need an account) and invite your partner with a personal link." },
-  { title: "Make it yours", body: "Add Hembrain to your phone's home screen (Share → Add to Home Screen) and, if you like, connect Claude from your Profile." },
+  { title: "Make it yours", body: "Add Hembrain to your phone's home screen (Share → Add to Home Screen) and, if you like, connect Claude from the Me tab." },
 ];
 
 export default async function WelcomePage({ searchParams }: PageProps<"/welcome">) {

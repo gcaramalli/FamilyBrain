@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { MemberBadge, MemberSelect } from "@/components/member-select";
-import { Purchases } from "@/components/purchases";
-import { ReceiptScan } from "@/components/receipt-scan";
+import { ConfirmButton } from "@/components/confirm-button";
+import { KitchenHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { CATEGORIES, categoryById, categoryOrder, guessCategory } from "@/lib/categories";
@@ -32,6 +32,7 @@ export default function ListsPage() {
   const [title, setTitle] = useState("");
   const [showDone, setShowDone] = useState(false);
   const [editing, setEditing] = useState<ListItem | null>(null);
+  const [managing, setManaging] = useState<List | null>(null);
 
   const active = lists.find((l) => l.id === activeId) ?? null;
   const isGrocery = active?.kind === "grocery";
@@ -190,7 +191,7 @@ export default function ListsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">{t("Lists")}</h1>
+      <KitchenHeader action={<button className="btn" onClick={() => setCreating(true)}>+ {t("List")}</button>} />
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {lists.map((l) => (
@@ -202,9 +203,11 @@ export default function ListsPage() {
             {l.kind === "grocery" ? "🛒" : "✅"} {l.name}
           </button>
         ))}
-        <button onClick={() => setCreating(true)} className="chip-toggle border-dashed text-muted">
-          + {t("New list")}
-        </button>
+        {active && (
+          <button onClick={() => setManaging(active)} className="chip-toggle text-muted" aria-label={t("Rename or delete this list")}>
+            ⋯
+          </button>
+        )}
       </div>
 
       {active && (
@@ -253,12 +256,6 @@ export default function ListsPage() {
             )}
           </div>
 
-          {isGrocery && (
-            <div className="flex flex-wrap gap-2">
-              <ReceiptScan onLogged={() => { loadItems(); loadRestock(); loadHistory(); }} />
-              <Purchases />
-            </div>
-          )}
 
           {isGrocery && suggestions.length > 0 && (
             <section className="card border-dashed">
@@ -316,6 +313,39 @@ export default function ListsPage() {
           )}
         </>
       )}
+
+      <Sheet open={!!managing} onClose={() => setManaging(null)} title={t("Rename list")}>
+        {managing && (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const name = new FormData(e.currentTarget).get("name")?.toString().trim();
+              if (name) {
+                await supabase.from("lists").update({ name }).eq("id", managing.id);
+                setLists((ls) => ls.map((l) => (l.id === managing.id ? { ...l, name } : l)));
+              }
+              setManaging(null);
+            }}
+          >
+            <input className="input" name="name" defaultValue={managing.name} required autoFocus />
+            <button className="btn">{t("Save")}</button>
+            <ConfirmButton
+              className="btn-ghost text-danger"
+              armed={t("Delete with all items?")}
+              onConfirm={async () => {
+                await supabase.from("lists").delete().eq("id", managing.id);
+                const rest = lists.filter((l) => l.id !== managing.id);
+                setLists(rest);
+                setActiveId(rest[0]?.id ?? null);
+                setManaging(null);
+              }}
+            >
+              {t("Delete this list")}
+            </ConfirmButton>
+          </form>
+        )}
+      </Sheet>
 
       <Sheet open={creating} onClose={() => setCreating(false)} title={t("New list")}>
         {creating && <NewListForm onCreate={newList} />}

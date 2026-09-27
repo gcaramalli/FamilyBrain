@@ -1,7 +1,10 @@
 "use client";
 
+import { useFamily } from "./family-context";
+
 // Bottom sheet used for add/edit forms on mobile.
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  const { t } = useFamily();
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40" onClick={onClose}>
@@ -11,7 +14,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="h2">{title}</h2>
-          <button onClick={onClose} className="text-muted" aria-label="Close">✕</button>
+          <button onClick={onClose} className="text-muted" aria-label={t("Close")}>✕</button>
         </div>
         {children}
       </div>

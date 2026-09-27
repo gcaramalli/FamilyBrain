@@ -5,20 +5,18 @@ import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventRow } from "@/components/event-row";
-import { SendGift } from "@/components/send-gift";
 import { CARE_KINDS, careKind, fetchAvailability, findSlot, isCareDay, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
-import type { CareAvailability, EventOccurrence, Member, Occasion, Recipe, RestockSuggestion } from "@/lib/types";
+import type { CareAvailability, EventOccurrence, Member, Occasion, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [events, setEvents] = useState<EventOccurrence[]>([]);
   const [answers, setAnswers] = useState<CareAvailability[]>([]);
-  const [tonight, setTonight] = useState<Recipe | null>(null);
   const [openCount, setOpenCount] = useState<number | null>(null);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
 
@@ -41,15 +39,6 @@ export default function TodayPage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, loadEvents)
       .on("postgres_changes", { event: "*", schema: "public", table: "care_availability" }, loadEvents)
       .subscribe();
-    // "Tonight?": favourites first, then any recipe.
-    supabase
-      .from("recipes")
-      .select("*")
-      .then(({ data }) => {
-        const all = (data ?? []) as Recipe[];
-        const pool = all.filter((r) => r.favorite).length ? all.filter((r) => r.favorite) : all;
-        setTonight(pool.length ? pool[Math.floor(Math.random() * pool.length)] : null);
-      });
     supabase
       .from("list_items")
       .select("id, lists!inner(kind)", { count: "exact", head: true })
@@ -87,57 +76,40 @@ export default function TodayPage() {
         <KidCard key={kid.id} kid={kid} events={events} answers={answers} onChanged={loadEvents} />
       ))}
 
+      {/* What's coming in the next day or so. Kids' care is in their card above. */}
       <section>
-        <div className="flex items-baseline justify-between">
-          <h2 className="h2">{t("Today")}</h2>
-          <Link href="/calendar" className="text-sm font-medium text-accent">{t("Calendar")} →</Link>
-        </div>
-        {today.length === 0 ? (
-          <p className="py-2 text-sm text-muted">{t("Nothing else planned.")}</p>
-        ) : (
-          <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} day={todayKey} />)}</div>
+        <h2 className="h2">{t("Coming up")}</h2>
+        {today.length === 0 && tomorrow.length === 0 && <p className="py-2 text-sm text-muted">{t("Nothing else planned.")}</p>}
+        {today.length > 0 && <div className="divide-y divide-border">{today.map((e) => <EventRow key={e.key} ev={e} day={todayKey} />)}</div>}
+        {tomorrow.length > 0 && (
+          <>
+            <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-muted">{t("Tomorrow")}</h3>
+            <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} day={tomorrowKey} />)}</div>
+          </>
         )}
       </section>
-
-      {tomorrow.length > 0 && (
-        <section>
-          <h2 className="h2">{t("Tomorrow")}</h2>
-          <div className="divide-y divide-border">{tomorrow.map((e) => <EventRow key={e.key} ev={e} day={tomorrowKey} />)}</div>
-        </section>
-      )}
 
       <SoonCard occasions={occasions} meId={me?.id} />
 
       <nav className="card divide-y divide-border py-1">
-        <Link href="/lists" className="flex min-h-14 items-center justify-between gap-3 py-2">
-          <div>
-            <div className="font-medium">🛒 {t("Shopping")}</div>
-            <p className="text-sm text-muted">
+        <Link href="/lists" className="flex min-h-12 items-center justify-between gap-3 py-2">
+          <div className="min-w-0">
+            <div className="font-medium">{t("Shopping")}</div>
+            <p className="truncate text-sm text-muted">
               {openCount === null ? "…" : openCount === 1 ? t("1 item to buy") : t("{n} items to buy", { n: openCount })}
               {restock.length > 0 && ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}`}
             </p>
           </div>
           <span className="text-muted">→</span>
         </Link>
-        <Link href="/recipes?tab=recipes" className="flex min-h-14 items-center justify-between gap-3 py-2">
-          <div>
-            <div className="font-medium">🍽 {t("Tonight?")}</div>
-            <p className="text-sm text-muted">
-              {tonight ? `${tonight.title}${tonight.prep_minutes ? ` · ${tonight.prep_minutes} min` : ""}` : t("Add a few recipes to get ideas here.")}
-            </p>
-          </div>
-          <span className="text-muted">→</span>
-        </Link>
-        <Link href="/brain" className="flex min-h-14 items-center justify-between gap-3 py-2">
-          <div>
-            <div className="font-medium">🧠 {t("Family brain")}</div>
-            <p className="text-sm text-muted">{t("Notes and dates worth remembering")}</p>
+        <Link href="/brain" className="flex min-h-12 items-center justify-between gap-3 py-2">
+          <div className="min-w-0">
+            <div className="font-medium">{t("Family brain")}</div>
+            <p className="truncate text-sm text-muted">{t("Notes and dates worth remembering")}</p>
           </div>
           <span className="text-muted">→</span>
         </Link>
       </nav>
-
-      <SendGift />
     </div>
   );
 }

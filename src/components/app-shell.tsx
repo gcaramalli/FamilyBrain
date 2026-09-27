@@ -9,25 +9,26 @@ import { ToastProvider } from "./toast";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { profile, family, kids, me, t, superAdmin } = useFamily();
+  const { profile, family, kids, me, t } = useFamily();
   // Service worker: needed for reminders (push notifications).
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  // Five tabs, one job each. Sub-pages light up the tab they belong to.
+  const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
+  const ME = ["/me", "/profile", "/connections", "/admin", "/stats", "/brain"];
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
 
-  // The Kids tab only shows up for families with a child, in the middle. Then
-  // Meals is reached from the "Tonight?" tile on Today, like the family brain
-  // (both are fed mostly through Claude). My private space sits bottom right.
+  // The Kids tab only shows up for families with a child, in the middle.
   const tabs = [
     { href: "/", label: t("Today"), icon: "🏠" },
     { href: "/calendar", label: t("Calendar"), icon: "📅" },
     ...(kids.length
       ? [{ href: "/kids", label: kids.length === 1 ? kids[0].name : t("Kids"), icon: kids.length === 1 ? kids[0].emoji : "👶" }]
       : []),
-    { href: "/lists", label: t("Lists"), icon: "🛒" },
-    ...(kids.length ? [] : [{ href: "/recipes", label: t("Meals"), icon: "🍽" }]),
-    { href: "/private", label: t("Private"), icon: "🔒" },
+    { href: "/lists", label: t("Kitchen"), icon: "🍳" },
+    { href: "/me", label: t("Me"), icon: "👤" },
   ];
 
   return (
@@ -35,26 +36,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex min-h-dvh max-w-xl flex-col">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur">
           <Link href="/" className="font-semibold tracking-tight">{family.name}</Link>
-          <div className="flex items-center gap-2">
-            {superAdmin && (
-              <Link href="/stats" aria-label={t("Stats")} className={`btn-ghost ${pathname.startsWith("/stats") ? "border-foreground" : ""}`}>
-                📊
-              </Link>
-            )}
-            {profile.role === "admin" && (
-              <Link href="/admin" aria-label={t("Admin")} className={`btn-ghost ${pathname.startsWith("/admin") ? "border-foreground" : ""}`}>
-                ⚙️ {t("Admin")}
-              </Link>
-            )}
-            <Link
-              href="/profile"
-              aria-label={t("Profile")}
-              className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
-              style={{ background: me?.color ?? profile.color }}
-            >
-              {(profile.display_name || "?").slice(0, 1).toUpperCase()}
-            </Link>
-          </div>
+          <Link
+            href="/me"
+            aria-label={t("Me")}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white"
+            style={{ background: me?.color ?? profile.color }}
+          >
+            {(profile.display_name || "?").slice(0, 1).toUpperCase()}
+          </Link>
         </header>
 
         <main className="flex-1 px-4 pb-28 pt-4">{children}</main>
