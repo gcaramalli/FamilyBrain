@@ -1,6 +1,6 @@
 import { serveMcp } from "@/lib/mcp/handler";
 
-// Claude connector: personal link created in the Profile tab
+// Claude / ChatGPT connector: personal link created in the Profile tab
 // (/api/mcp/<token>). The link itself is the secret.
 async function handler(request: Request, { params }: RouteContext<"/api/mcp/[token]">) {
   const { token } = await params;

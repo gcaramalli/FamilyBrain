@@ -443,4 +443,13 @@ export const fr: Record<string, string> = {
   "Delete this tile": "Supprimer cette tuile",
   "Gift ideas": "Idées cadeaux",
   "Work": "Boulot",
+  // Connectors (Claude / ChatGPT)
+  "In Claude: Settings → Connectors → Add custom connector → paste your link → Authentication: none.": "Dans Claude : Réglages → Connecteurs → Ajouter un connecteur personnalisé → colle ton lien → Authentification : aucune.",
+  "In ChatGPT (web, paid plan): Settings → Apps & Connectors → Advanced → turn on Developer mode, then Create → paste your link → Authentication: none. It then works on your phone too.": "Dans ChatGPT (sur le web, forfait payant) : Réglages → Apps et connecteurs → Avancé → active le mode développeur, puis Créer → colle ton lien → Authentification : aucune. Ça marche ensuite aussi sur ton téléphone.",
+  "Connect Claude or ChatGPT": "Connecter Claude ou ChatGPT",
+  "Lets your AI app read and add to the calendar, lists, recipes and notes, as you.": "Permet à ton app d'IA de lire et d'ajouter au calendrier, aux listes, aux recettes et aux notes, en ton nom.",
+  "It works like a password: paste it only into {app}'s connector settings, never in a chat or screenshot.": "Il fonctionne comme un mot de passe : colle-le seulement dans les réglages de connecteur de {app}, jamais dans une discussion ou une capture d'écran.",
+  "{app} loses access. Revoke?": "{app} perd l'accès. Révoquer ?",
+  "Name, e.g. {app} on my phone": "Nom, ex. {app} sur mon téléphone",
+  "{app} link": "Lien {app}",
 };

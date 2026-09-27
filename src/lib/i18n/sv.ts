@@ -443,4 +443,13 @@ export const sv: Record<string, string> = {
   "Delete this tile": "Radera rutan",
   "Gift ideas": "Presentidéer",
   "Work": "Jobb",
+  // Connectors (Claude / ChatGPT)
+  "In Claude: Settings → Connectors → Add custom connector → paste your link → Authentication: none.": "I Claude: Inställningar → Kopplingar → Lägg till anpassad koppling → klistra in länken → Autentisering: ingen.",
+  "In ChatGPT (web, paid plan): Settings → Apps & Connectors → Advanced → turn on Developer mode, then Create → paste your link → Authentication: none. It then works on your phone too.": "I ChatGPT (på webben, betalplan): Inställningar → Appar och kopplingar → Avancerat → slå på utvecklarläge, sedan Skapa → klistra in länken → Autentisering: ingen. Sedan fungerar det i mobilen också.",
+  "Connect Claude or ChatGPT": "Koppla Claude eller ChatGPT",
+  "Lets your AI app read and add to the calendar, lists, recipes and notes, as you.": "Låter din AI-app läsa och lägga till i kalendern, listorna, recepten och anteckningarna, som du.",
+  "It works like a password: paste it only into {app}'s connector settings, never in a chat or screenshot.": "Den fungerar som ett lösenord: klistra bara in den i kopplingsinställningarna i {app}, aldrig i en chatt eller skärmdump.",
+  "{app} loses access. Revoke?": "{app} förlorar åtkomst. Återkalla?",
+  "Name, e.g. {app} on my phone": "Namn, t.ex. {app} i mobilen",
+  "{app} link": "{app}-länk",
 };
