@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0016 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0017 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -75,7 +75,7 @@ Rules of thumb:
   attendees) and items (`kind` todo/give/discuss, `status` open → waiting (handed over) → done, optional person/project/meeting).
   A person's page = their items + items on their projects; a meeting's agenda = its items + give/discuss items for its
   attendees (`src/lib/work.ts`); `not_before` keeps an item off agendas until then ("for next week's meeting"), done items
-  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. Owner-only RLS like `private_boards`. The one private part the connector reaches
+  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others. Owner-only RLS like `private_boards`. The one private part the connector reaches
   (`get_work` / `add_work_items` / `update_work_item` / `set_work_entry`), always filtered by the token owner's `profile_id`
   and refused for the legacy family token.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`

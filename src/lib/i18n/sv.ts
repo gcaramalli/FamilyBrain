@@ -553,4 +553,11 @@ export const sv: Record<string, string> = {
   "@person or @all, what to do…": "@person eller @alla, vad som ska göras…",
   "Waiting on: {names}": "Väntar på: {names}",
   "Name someone with @, or @all for everyone in the meeting.": "Nämn någon med @, eller @alla för alla på mötet.",
+  "Add something… (! = priority)": "Lägg till… (! = prioriterat)",
+  "@person #project what to do… (! = priority)": "@person #projekt vad som ska göras… (! = prioriterat)",
+  "Priority": "Prioriterat",
+  "My to-do": "Min att göra-lista",
+  "Nothing to do yourself. Add it above, or tell Claude.": "Inget att göra själv. Lägg till ovan, eller säg det till Claude.",
+  "Waiting on others": "Väntar på andra",
+  "Edit details": "Redigera uppgifter",
 };
