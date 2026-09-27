@@ -73,7 +73,7 @@ Rules of thumb:
 - `purchases` — auto-filled by a trigger when a grocery item is checked off (skipped if the item was logged <10 min ago); `source` list/manual/receipt, `store`, `price`
 - `restock_suggestions` — view: average interval between purchases → `next_due_on` (needs ≥2 purchases)
 - `recipes` — `ingredients text[]`, `tags text[]`, `favorite`, `kid_friendly`
-- `meals` — what we ate: `eaten_on`, `slot` (breakfast/lunch/dinner/snack), `title`, optional `recipe_id`, `food_groups` (ids in `src/lib/meals.ts`, for balance), `place` (home/out/takeaway), `member_ids` (empty = everyone). Meals tab → "What we ate"; connector `log_meal` / `get_meals`, `dinner_ideas` returns last week's meals, `plan_groceries` gives Claude the habits + what runs out to plan the shopping (no in-app prediction on purpose)
+- `meals` — what we ate: `eaten_on`, `slot` (breakfast/lunch/dinner/snack), `title`, optional `recipe_id`, `food_groups` (ids in `src/lib/meals.ts`, for balance), `place` (home/out/takeaway), `member_ids` (empty = everyone). Meals tab → "What we ate", filtered All / with the kids (no `member_ids` or a kid in them) / parents only; connector `log_meal` / `get_meals`, `dinner_ideas` returns last week's meals, `plan_groceries` gives Claude the habits + what runs out to plan the shopping (no in-app prediction on purpose)
 - `notes` — the family brain
 - `private_boards` / `private_items` — each account's private space (top of the Me tab, `src/components/private-space.tsx`): tiles that are a
   list, a note or gift ideas (`private_items.person` / `occasion`, grouped by person; tiles show no content preview), RLS on `profile_id = auth.uid()` so nobody else sees them, not even the admin. Not exposed through the
@@ -132,6 +132,7 @@ Rules of thumb:
   the page fading into the background beneath it. A person shows as a dot in their colour + name (`MemberBadge`).
 - Icons: `lucide-react` line icons for the interface (tabs, buttons, section titles); emoji only for what
   people choose themselves (a kid's emoji, private tiles, gifts).
-- Optional server env: `ANTHROPIC_API_KEY` (receipt scan + "type it" event entry, `src/lib/ai.ts`),
+- Optional server env: `ANTHROPIC_API_KEY` (receipt scan + "type it" event entry, `src/lib/ai.ts`, on the cheapest model,
+  Haiku; advice like sleep or meals goes through the family's own Claude + the connector, not the API),
   `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (reminders, `src/lib/push.ts`) and `CRON_SECRET`
   (`/api/cron/reminders`, daily at 17:00 UTC via `vercel.json`). Features hide themselves when unset.

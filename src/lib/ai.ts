@@ -11,9 +11,12 @@ import { FREE_MONTHLY_LIMIT_USD, monthStart } from "@/lib/ai-budget";
 export const aiEnabled = () =>
   Boolean(process.env.ANTHROPIC_API_KEY && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY));
 
-const MODEL = "claude-opus-5";
+// The cheapest model: in-app calls are small extractions (a receipt, one
+// sentence → an event). Advice (sleep, meals) comes from the family's own
+// Claude through the connector, which costs Hembrain nothing.
+const MODEL = "claude-haiku-4-5";
 // $ per million tokens (input, output). Cache reads cost 0.1× input, cache
-// writes 1.25×. A model missing here (e.g. a new fallback) is priced as Opus.
+// writes 1.25×. A model missing here is priced as Opus, to stay on the safe side.
 const PRICES: Record<string, [number, number]> = {
   "claude-opus-5": [5, 25],
   "claude-opus-4-8": [5, 25],
@@ -45,7 +48,7 @@ async function assertBudget(familyId: string) {
 }
 
 async function logUsage(caller: AiCaller, model: string, usage: Anthropic.Beta.BetaUsage) {
-  const [inPrice, outPrice] = PRICES[model] ?? PRICES[MODEL];
+  const [inPrice, outPrice] = PRICES[model] ?? PRICES["claude-opus-5"];
   const input = usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
   const cost =
     (usage.input_tokens * inPrice +
@@ -71,17 +74,13 @@ export async function extract<S extends z.ZodType>(
   schema: S,
   system: string,
   content: Anthropic.Beta.BetaContentBlockParam[],
-  effort: "low" | "medium" = "low",
 ): Promise<z.infer<S>> {
   await assertBudget(caller.familyId);
   client ??= new Anthropic();
   const response = await client.beta.messages.parse({
     model: MODEL,
     max_tokens: 16000,
-    // If a safety classifier declines, Anthropic retries on its recommended model.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: { effort, format: betaZodOutputFormat(schema) },
+    output_config: { format: betaZodOutputFormat(schema) },
     system,
     messages: [{ role: "user", content }],
   });

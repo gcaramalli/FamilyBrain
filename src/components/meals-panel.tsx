@@ -17,11 +17,15 @@ type Draft = MealDraft;
 const WATCH = ["vegetables", "fish", "legumes"];
 const DAYS = 14;
 
+// Who ate: everyone (all), a meal with the kids, or the parents on their own.
+type Who = "all" | "kids" | "parents";
+
 // What we ate, day by day, and how the last week looks. Mostly filled in by
 // Claude ("we had salmon and potatoes tonight"); editable here.
 export function MealsPanel() {
-  const { supabase, t } = useFamily();
-  const [meals, setMeals] = useState<Meal[]>([]);
+  const { supabase, kids, t } = useFamily();
+  const [all, setAll] = useState<Meal[]>([]);
+  const [who, setWho] = useState<Who>("all");
   const [recipes, setRecipes] = useState<Pick<Recipe, "id" | "title">[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
 
@@ -31,13 +35,21 @@ export function MealsPanel() {
       supabase.from("meals").select("*").gte("eaten_on", since).order("eaten_on", { ascending: false }).order("created_at"),
       supabase.from("recipes").select("id, title").order("title"),
     ]);
-    setMeals((m ?? []) as Meal[]);
+    setAll((m ?? []) as Meal[]);
     setRecipes((r ?? []) as Pick<Recipe, "id" | "title">[]);
   }, [supabase]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // No member_ids = everyone, so the kids too; parents only = only adults listed.
+  const meals = useMemo(() => {
+    if (who === "all" || !kids.length) return all;
+    const kidIds = new Set(kids.map((k) => k.id));
+    const withKids = (m: Meal) => m.member_ids.length === 0 || m.member_ids.some((id) => kidIds.has(id));
+    return all.filter((m) => (who === "kids" ? withKids(m) : !withKids(m)));
+  }, [all, who, kids]);
 
   const weekStart = dayKey(addDays(startOfDay(new Date()), -6));
   const week = meals.filter((m) => m.eaten_on >= weekStart);
@@ -56,7 +68,23 @@ export function MealsPanel() {
     <div className="flex flex-col gap-4">
       <KitchenHeader action={<button className="btn" onClick={() => setEditing(blank())}>+ {t("Meal")}</button>} />
 
-      {meals.length === 0 ? (
+      {kids.length > 0 && all.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["all", t("All")],
+            ["kids", kids.length === 1 ? t("With {name}", { name: kids[0].name }) : t("With the kids")],
+            ["parents", t("Parents only")],
+          ] as [Who, string][]).map(([id, label]) => (
+            <button key={id} onClick={() => setWho(id)} aria-pressed={who === id} className={`chip-toggle ${who === id ? "chip-on" : ""}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {meals.length === 0 && all.length > 0 ? (
+        <p className="card text-center text-sm text-muted">{t("No meals here in the last two weeks.")}</p>
+      ) : meals.length === 0 ? (
         <div className="card text-center text-muted">
           <Utensils size={28} className="mx-auto" />
           <p className="mt-2">{t("Nothing logged yet. Tell Claude “we had salmon and potatoes tonight”, or add it here. After a week you'll see how balanced it was.")}</p>

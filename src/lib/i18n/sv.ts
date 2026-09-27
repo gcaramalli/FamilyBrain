@@ -709,4 +709,8 @@ export const sv: Record<string, string> = {
   "Planned": "Planerat",
   "Not for now": "Inte just nu",
   "New": "Nytt",
+  "With {name}": "Med {name}",
+  "With the kids": "Med barnen",
+  "Parents only": "Bara föräldrarna",
+  "No meals here in the last two weeks.": "Inga måltider här de senaste två veckorna.",
 };

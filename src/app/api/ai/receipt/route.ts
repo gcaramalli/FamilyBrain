@@ -48,7 +48,6 @@ Otherwise use a short plain name in the language of those usual names (English i
         { type: "image", source: { type: "base64", media_type: mediaType, data: Buffer.from(await file.arrayBuffer()).toString("base64") } },
         { type: "text", text: "List the items on this receipt." },
       ],
-      "medium",
     );
     return Response.json(receipt);
   } catch (e) {

@@ -709,4 +709,8 @@ export const fr: Record<string, string> = {
   "Planned": "Prévu",
   "Not for now": "Pas pour l'instant",
   "New": "Nouveau",
+  "With {name}": "Avec {name}",
+  "With the kids": "Avec les enfants",
+  "Parents only": "Parents seuls",
+  "No meals here in the last two weeks.": "Aucun repas ici ces deux dernières semaines.",
 };
