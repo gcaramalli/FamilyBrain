@@ -657,4 +657,11 @@ export const sv: Record<string, string> = {
   "Shown in the family calendar; the others get a reminder the evening before.": "Visas i familjens kalender; de andra får en påminnelse kvällen innan.",
   "No date of birth yet for {names}.": "Inget födelsedatum än för {names}.",
   "Add mine": "Lägg till mitt",
+  "Add something… (! = priority)": "Lägg till… (! = prioriterat)",
+  "@person #project what to do… (! = priority)": "@person #projekt vad som ska göras… (! = prioriterat)",
+  "Priority": "Prioriterat",
+  "My to-do": "Min att göra-lista",
+  "Nothing to do yourself. Add it above, or tell Claude.": "Inget att göra själv. Lägg till ovan, eller säg det till Claude.",
+  "Waiting on others": "Väntar på andra",
+  "Edit details": "Redigera uppgifter",
 };

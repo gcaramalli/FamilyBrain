@@ -30,13 +30,26 @@ export function findByName<T extends { name: string }>(rows: T[], name: string):
   return rows.find((r) => norm(r.name) === n) ?? rows.find((r) => norm(r.name).startsWith(n));
 }
 
+// Priority first, then by due date, then oldest first.
+export function sortItems(items: WorkItem[]) {
+  return [...items].sort(
+    (a, b) =>
+      Number(b.priority) - Number(a.priority) ||
+      (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") ||
+      a.created_at.localeCompare(b.created_at),
+  );
+}
+
 // Quick capture: "@Anna #EVP send the brief" → person Anna, project EVP.
-// "#" matches a project first, then a meeting. Unknown tags stay in the text.
+// "#" matches a project first, then a meeting; a lone "!" = priority.
+// Unknown tags stay in the text.
 export function parseCapture(line: string, people: WorkPerson[], projects: WorkProject[], meetings: WorkMeeting[]) {
   let person: WorkPerson | undefined;
   let project: WorkProject | undefined;
   let meeting: WorkMeeting | undefined;
+  let priority = false;
   const words = line.split(/\s+/).filter((w) => {
+    if (w === "!") return !(priority = true);
     const m = w.match(/^([@#])(.+)$/);
     if (!m) return true;
     if (m[1] === "@" && !person) return !(person = findByName(people, m[2]));
@@ -46,7 +59,7 @@ export function parseCapture(line: string, people: WorkPerson[], projects: WorkP
     }
     return true;
   });
-  return { title: words.join(" ").trim(), person, project, meeting };
+  return { title: words.join(" ").trim(), person, project, meeting, priority };
 }
 
 // A person's page: what is theirs directly, then what sits on their projects.

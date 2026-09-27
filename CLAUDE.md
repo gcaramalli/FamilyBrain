@@ -83,7 +83,7 @@ Rules of thumb:
   attendees) and items (`kind` todo/give/discuss, `status` open → waiting (handed over) → done, optional person/project/meeting).
   A person's page = their items + items on their projects; a meeting's agenda = its items + give/discuss items for its
   attendees (`src/lib/work.ts`); `not_before` keeps an item off agendas until then ("for next week's meeting"), done items
-  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. Owner-only RLS like `private_boards`. The one private part the connector reaches
+  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others. Owner-only RLS like `private_boards`. The one private part the connector reaches
   (`get_work` / `add_work_items` / `update_work_item` / `set_work_entry`), always filtered by the token owner's `profile_id`
   and refused for the legacy family token.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`

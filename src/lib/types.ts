@@ -195,6 +195,7 @@ export type WorkItem = {
   meeting_id: string | null;
   due_date: string | null;
   not_before: string | null; // off agendas until then ("for next week's meeting")
+  priority: boolean; // listed first everywhere
   waiting_since: string | null;
   done_at: string | null;
   created_at: string;

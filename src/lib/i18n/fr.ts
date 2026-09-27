@@ -657,4 +657,11 @@ export const fr: Record<string, string> = {
   "Shown in the family calendar; the others get a reminder the evening before.": "Affichée dans le calendrier de la famille ; les autres reçoivent un rappel la veille au soir.",
   "No date of birth yet for {names}.": "Pas encore de date de naissance pour {names}.",
   "Add mine": "Ajouter la mienne",
+  "Add something… (! = priority)": "Ajouter… (! = prioritaire)",
+  "@person #project what to do… (! = priority)": "@personne #projet quoi faire… (! = prioritaire)",
+  "Priority": "Prioritaire",
+  "My to-do": "Ma to-do",
+  "Nothing to do yourself. Add it above, or tell Claude.": "Rien à faire toi-même. Ajoute-le au-dessus, ou dis-le à Claude.",
+  "Waiting on others": "En attente des autres",
+  "Edit details": "Modifier la fiche",
 };

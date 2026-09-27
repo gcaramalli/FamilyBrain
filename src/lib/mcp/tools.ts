@@ -11,7 +11,7 @@ import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
 import { ageInMonths } from "@/lib/dates";
 import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
 import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
-import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems } from "@/lib/work";
+import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems, sortItems } from "@/lib/work";
 import type { KidClothes, KidSleep, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
 // Tools exposed to Claude through the family connector. Every query is
@@ -59,6 +59,7 @@ Routing:
   don't bring it up unless asked. File each item yourself: who it's for (person), which project, which recurring meeting,
   and the kind (todo = I do it, give = hand it to the person, discuss = bring it up with them). Call get_work first to
   know the people, projects and meetings; if a name is new, ask before creating it with set_work_entry.
+  The speaker's own to-do = kind todo (with or without person/project); "urgent", "priority", "first thing" → priority.
   "Done in the Tuesday meeting: gave X to Karim" → update_work_item status "waiting" (handed over) or "done".
   "For next week's team meeting: talk about X" → add_work_items with meeting + next_time. Tasks assigned during a meeting →
   one item per person, kind give, already_handed_over. Recaps ("what's not done, who delivered?"): get_work with
@@ -102,7 +103,7 @@ async function loadWork() {
     people: (p.data ?? []) as WorkPerson[],
     projects: (pr.data ?? []) as WorkProject[],
     meetings: (m.data ?? []) as WorkMeeting[],
-    items: (i.data ?? []) as WorkItem[], // open + waiting
+    items: sortItems((i.data ?? []) as WorkItem[]), // open + waiting, priority first
     done: (d.data ?? []) as WorkItem[], // finished in the last HISTORY_DAYS
   };
 }
@@ -133,10 +134,12 @@ function workItemOut(i: WorkItem, w: Work) {
     title: i.title,
     kind: i.kind,
     status: i.status,
+    priority: i.priority || undefined,
     person: name(w.people, i.person_id),
     project: name(w.projects, i.project_id),
     meeting: name(w.meetings, i.meeting_id),
     due: i.due_date,
+    late: (i.status !== "done" && !!i.due_date && i.due_date < workToday()) || undefined,
     not_before: i.not_before,
     waiting_since: i.waiting_since?.slice(0, 10) ?? null,
     done_on: i.done_at?.slice(0, 10) ?? null,
@@ -1178,6 +1181,7 @@ export function registerTools(server: McpServer) {
             z.object({
               title: z.string().min(1).max(500),
               kind: z.enum(["todo", "give", "discuss"]).optional().describe("Default todo"),
+              priority: z.boolean().optional().describe("Urgent / important: listed first"),
               person: z.string().optional(),
               project: z.string().optional(),
               meeting: z.string().optional().describe("Recurring meeting where it should come up"),
@@ -1203,6 +1207,7 @@ export function registerTools(server: McpServer) {
           profile_id: ownerId(),
           title: i.title.trim(),
           kind: i.kind ?? "todo",
+          priority: i.priority ?? false,
           person_id: workRef(w.people, i.person, "person") ?? null,
           project_id: workRef(w.projects, i.project, "project") ?? null,
           meeting_id: meetingId,
@@ -1229,6 +1234,7 @@ export function registerTools(server: McpServer) {
         title: z.string().min(1).max(500).optional(),
         kind: z.enum(["todo", "give", "discuss"]).optional(),
         status: z.enum(["open", "waiting", "done"]).optional(),
+        priority: z.boolean().optional(),
         person: z.string().optional(),
         project: z.string().optional(),
         meeting: z.string().optional(),
@@ -1236,7 +1242,7 @@ export function registerTools(server: McpServer) {
         not_before: z.string().optional().describe("Keep off agendas until this date, YYYY-MM-DD"),
       }),
     },
-    async ({ id, title, kind, status, person, project, meeting, due, not_before }) => {
+    async ({ id, title, kind, status, priority, person, project, meeting, due, not_before }) => {
       const w = await loadWork();
       const db = createAdminClient();
       const { data: before } = await db.from("work_items").select("*").eq("id", id).eq("profile_id", ownerId()).maybeSingle();
@@ -1244,6 +1250,7 @@ export function registerTools(server: McpServer) {
       const row: Record<string, unknown> = {};
       if (title !== undefined) row.title = title.trim();
       if (kind !== undefined) row.kind = kind;
+      if (priority !== undefined) row.priority = priority;
       if (status !== undefined && status !== before.status) {
         const now = new Date().toISOString();
         row.status = status;
