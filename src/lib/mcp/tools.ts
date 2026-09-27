@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mcpContext, type McpContext } from "./context";
 import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
+import { familyBirthdays } from "@/lib/occasions";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
@@ -50,7 +51,8 @@ Routing:
   kid's meals: get_meals with who = the kid (loves / refuses) and suggest what fits their age and balances their week.
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
-- Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
+- Birthdays of the family's own members (parents, kids): set_birthdate (they show in the calendar and the others are
+  reminded the evening before). Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
   the calendar on purpose (only the family's own dates show there); the app reminds the right people the evening before.
 - The speaker's own WORK (colleagues, work projects, meetings, "tell Karim to…", "discuss X with my boss"): get_work /
   add_work_items / update_work_item / set_work_entry. Private to the speaker: never mix it with family lists or notes, and
@@ -345,12 +347,14 @@ export function registerTools(server: McpServer) {
       const db = createAdminClient();
       const [{ data: rows, error }, { data: members }] = await Promise.all([
         db.from("occasions").select("id, kind, title, date, ours, member_ids, ended, notes").eq("family_id", familyId()).order("date"),
-        db.from("members").select("id, name").eq("family_id", familyId()),
+        db.from("members").select("id, name, birthdate").eq("family_id", familyId()),
       ]);
       if (error) throw new Error(error.message);
+      // The family's own birthdays live on members (set_birthdate).
+      const all = [...(rows ?? []), ...familyBirthdays(members ?? [])];
       const today = new Date(`${utcToStockholm(new Date().toISOString()).slice(0, 10)}T12:00:00Z`);
       const name = (id: string) => (members ?? []).find((m) => m.id === id)?.name ?? null;
-      const out = (rows ?? [])
+      const out = all
         .filter((o) => !search || o.title.toLowerCase().includes(search.toLowerCase()))
         .map((o) => {
           const [y, m, d] = o.date.split("-").map(Number);
@@ -373,6 +377,26 @@ export function registerTools(server: McpServer) {
         .filter((o) => days === undefined || (!o.no_longer_celebrated && o.in_days <= days))
         .sort((a, b) => a.in_days - b.in_days);
       return text(out);
+    },
+  );
+
+  server.registerTool(
+    "set_birthdate",
+    {
+      title: "Set a family member's date of birth",
+      description:
+        "Date of birth of someone in the family (a parent or a kid). It shows in the family calendar, the others get a reminder the evening before, and a kid's age drives sleep and clothing advice. Friends and relatives go in add_occasion instead.",
+      inputSchema: z.object({
+        name: z.string().min(1).describe("First name of the family member"),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("YYYY-MM-DD"),
+      }),
+    },
+    async ({ name, date }) => {
+      const id = await memberIdByName(name);
+      if (date > stockholmDay(new Date().toISOString())) throw new Error("A date of birth can't be in the future.");
+      const { data, error } = await createAdminClient().from("members").update({ birthdate: date }).eq("id", id).eq("family_id", familyId()).select("name").single();
+      if (error) throw new Error(error.message);
+      return text(`${data.name}'s date of birth is now ${date}.`);
     },
   );
 

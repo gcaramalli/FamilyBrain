@@ -654,4 +654,7 @@ export const sv: Record<string, string> = {
   "Last night": "I natt",
   "Log {name}'s nights and naps, even afterwards.": "Logga {name}s nätter och tupplurar, även i efterhand.",
   "Asleep right now": "Sover just nu",
+  "Shown in the family calendar; the others get a reminder the evening before.": "Visas i familjens kalender; de andra får en påminnelse kvällen innan.",
+  "No date of birth yet for {names}.": "Inget födelsedatum än för {names}.",
+  "Add mine": "Lägg till mitt",
 };

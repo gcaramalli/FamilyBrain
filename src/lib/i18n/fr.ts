@@ -654,4 +654,7 @@ export const fr: Record<string, string> = {
   "Last night": "La nuit dernière",
   "Log {name}'s nights and naps, even afterwards.": "Note les nuits et siestes de {name}, même après coup.",
   "Asleep right now": "Dort en ce moment",
+  "Shown in the family calendar; the others get a reminder the evening before.": "Affichée dans le calendrier de la famille ; les autres reçoivent un rappel la veille au soir.",
+  "No date of birth yet for {names}.": "Pas encore de date de naissance pour {names}.",
+  "Add mine": "Ajouter la mienne",
 };

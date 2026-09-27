@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "./family-context";
 import { Sheet } from "./sheet";
 import { useToast } from "./toast";
 import { fmtDate } from "@/lib/dates";
 import type { T } from "@/lib/i18n";
-import { daysAway, fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel, parseOccasionList, upcoming } from "@/lib/occasions";
+import { daysAway, familyBirthdays, fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel, parseOccasionList, upcoming } from "@/lib/occasions";
 import type { Occasion } from "@/lib/types";
 
 type Draft = Omit<Occasion, "id"> & { id?: string };
@@ -20,7 +21,7 @@ export function whenLabel(t: T, days: number, day: Date) {
 // Weddings and birthdays of the people around us. Kept out of the calendar
 // (only "ours" shows there); reminders arrive the evening before.
 export function OccasionsPanel() {
-  const { supabase, adults, memberById, t } = useFamily();
+  const { supabase, adults, members, me, profile, memberById, t } = useFamily();
   const toast = useToast();
   const [items, setItems] = useState<Occasion[]>([]);
   const [editing, setEditing] = useState<Draft | null>(null);
@@ -31,7 +32,11 @@ export function OccasionsPanel() {
     load();
   }, [load]);
 
-  const soon = useMemo(() => upcoming(items, 60), [items]);
+  // The family's own birthdays come from members.birthdate (set in Profile,
+  // Family settings or the kid's ⚙️), not from occasions.
+  const family = useMemo(() => familyBirthdays(members), [members]);
+  const soon = useMemo(() => upcoming([...items, ...family], 60), [items, family]);
+  const missing = members.filter((m) => !m.birthdate);
   // All of them, grouped by the year it happened.
   const byYear = useMemo(() => {
     const map = new Map<string, Occasion[]>();
@@ -71,7 +76,7 @@ export function OccasionsPanel() {
           <ul className="divide-y divide-border">
             {soon.map(({ o, day, years }) => (
               <li key={o.id}>
-                <button className="flex w-full items-center gap-3 py-2.5 text-left" onClick={() => setEditing(o)}>
+                <button className="flex w-full items-center gap-3 py-2.5 text-left" onClick={() => !o.id.startsWith("bday-") && setEditing(o)}>
                   <span className="text-xl">{OCCASION_EMOJI[o.kind]}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-medium">{o.title}{o.ours && " ⭐"}</span>
@@ -86,6 +91,19 @@ export function OccasionsPanel() {
           </ul>
         )}
       </section>
+
+      {missing.length > 0 && (
+        <p className="rounded-xl bg-accent-soft px-4 py-3 text-sm">
+          {t("No date of birth yet for {names}.", { names: missing.map((m) => m.name).join(", ") })}{" "}
+          {missing.some((m) => m.id === me?.id) && <Link href="/profile" className="font-medium underline">{t("Add mine")}</Link>}
+          {profile.role === "admin" && missing.some((m) => m.id !== me?.id) && (
+            <>
+              {missing.some((m) => m.id === me?.id) && " · "}
+              <Link href="/admin" className="font-medium underline">{t("Family settings")}</Link>
+            </>
+          )}
+        </p>
+      )}
 
       {byYear.map(([year, list]) => (
         <section key={year}>

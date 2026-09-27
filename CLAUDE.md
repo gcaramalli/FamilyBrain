@@ -93,6 +93,8 @@ Rules of thumb:
   `ours` = one of the family's own dates. Deliberately **not** in `events`: only `ours` and members' `birthdate`
   are shown in the calendar (`familyDates` in `src/lib/occasions.ts`); the rest live in Brain → Dates and in the
   evening reminder. Connector: `get_occasions` / `add_occasion`.
+  Family members' own birthdays are `members.birthdate` (Profile, Family settings, kid ⚙️; connector `set_birthdate`), turned
+  into occasions by `familyBirthdays()`: calendar, Brain → Dates, `get_occasions`, and the evening reminder to everyone but the person.
 
 ## Dev
 
