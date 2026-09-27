@@ -22,6 +22,8 @@ type FamilyContextValue = {
   t: T;
   // Server features that need configuration (Anthropic API key).
   ai: boolean;
+  // Level 3: sees usage stats across all families (/stats).
+  superAdmin: boolean;
 };
 
 const FamilyContext = createContext<FamilyContextValue | null>(null);
@@ -31,12 +33,14 @@ export function FamilyProvider({
   family,
   members,
   ai,
+  superAdmin = false,
   children,
 }: {
   profile: Profile;
   family: Family;
   members: Member[];
   ai: boolean;
+  superAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const value = useMemo(() => {
@@ -58,8 +62,9 @@ export function FamilyProvider({
       locale,
       t,
       ai,
+      superAdmin,
     };
-  }, [profile, family, members, ai]);
+  }, [profile, family, members, ai, superAdmin]);
 
   return <FamilyContext.Provider value={value}>{children}</FamilyContext.Provider>;
 }

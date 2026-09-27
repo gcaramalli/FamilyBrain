@@ -175,7 +175,7 @@ export default function AdminPage() {
           <button className="btn">{t("Invite")}</button>
         </form>
         <p className="text-xs text-muted">
-          {t("Two ways for them to join: send the private link (SMS/WhatsApp; single use, 14 days), or create their account yourself in Supabase → Authentication → Users → Add user with this same email. Either way they land in this family.")}
+          {t("Send them the private link (SMS/WhatsApp; single use, 14 days). They create their account from it and land in this family.")}
         </p>
       </section>
 
