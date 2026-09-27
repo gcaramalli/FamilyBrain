@@ -98,6 +98,8 @@ export function CareSlot({
   const time = event ? formatTime(event.occurrence_start) : usualTime(kid, kind);
   const status = goer ? t("{name} is going", { name: goer.name }) : nobodyCan ? t("Nobody can") : someoneCan ? t("Not confirmed") : t("Who?");
   const mineLabel = { going: t("I'm going"), yes: t("I can"), no: t("I can't") };
+  // "I can" → offer to confirm, inside the slot so the row keeps its height.
+  const confirming = !goer && mine === "yes";
   return (
     <div className={`relative flex flex-col gap-1 ${past ? "opacity-50" : ""}`}>
       <button
@@ -124,14 +126,18 @@ export function CareSlot({
           <span className="block text-xs tabular-nums text-muted">
             {kind === "dropoff" ? "☀️" : "🌙"} {time}
           </span>
-          <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"}`}>
+          <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"} ${confirming ? "invisible" : ""}`}>
             {goer ? `${goer.name} ✓` : status}
           </span>
         </span>
       </button>
-      {!goer && mine === "yes" && (
-        <button onClick={() => change("going")} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-on-accent">
-          ✓ {t("I'm going")}
+      {confirming && (
+        <button
+          onClick={() => change("going")}
+          aria-label={t("I'm going")}
+          className="absolute bottom-1.5 right-1.5 whitespace-nowrap rounded-md bg-accent px-1.5 py-1 text-[11px] font-semibold leading-none text-on-accent"
+        >
+          ✓ {t("Confirm")}
         </button>
       )}
       {event && onEdit && (
@@ -143,7 +149,7 @@ export function CareSlot({
   );
 }
 
-// A parent's initial with what they said: filled = can, crossed out = can't, dashed = not said.
+// A parent's initial with what they said: filled = can, red cross = can't, dashed = not said.
 function Answer({ person, answer }: { person: Member; answer: Mine }) {
   const { t } = useFamily();
   const label = answer === "no" ? t("can't") : answer ? t("can") : t("hasn't said");
@@ -151,7 +157,7 @@ function Answer({ person, answer }: { person: Member; answer: Mine }) {
     <span
       title={`${person.name}: ${label}`}
       className={`relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface text-xs font-semibold ${
-        answer === "yes" ? "text-white" : answer === "no" ? "text-muted line-through" : "text-muted"
+        answer === "yes" ? "text-white" : answer === "no" ? "text-danger" : "text-muted"
       }`}
       style={
         answer === "yes"
