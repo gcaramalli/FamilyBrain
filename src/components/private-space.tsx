@@ -185,7 +185,25 @@ export function PrivateSpace() {
   );
 }
 
-function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard; items: PrivateItem[]; onChanged: () => void; onDelete: () => void }) {
+// Also used for the kid tab's own tiles (kid_boards / kid_items, shared by
+// the family): same list and note, other tables.
+type BoardTables = { boards: "private_boards" | "kid_boards"; items: "private_items" | "kid_items" };
+type AnyBoard = Pick<PrivateBoard, "id" | "title" | "body"> & { kind: string };
+type AnyItem = Pick<PrivateItem, "id" | "board_id" | "title" | "done" | "created_at">;
+
+export function BoardView({
+  board,
+  items,
+  onChanged,
+  onDelete,
+  tables = { boards: "private_boards", items: "private_items" },
+}: {
+  board: AnyBoard;
+  items: AnyItem[];
+  onChanged: () => void;
+  onDelete: () => void;
+  tables?: BoardTables;
+}) {
   const { supabase, t } = useFamily();
   const toast = useToast();
   const [title, setTitle] = useState(board.title);
@@ -198,13 +216,13 @@ function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard;
     if (body === saved.current) return;
     const timer = setTimeout(() => {
       saved.current = body;
-      supabase.from("private_boards").update({ body, updated_at: new Date().toISOString() }).eq("id", board.id).then(onChanged);
+      supabase.from(tables.boards).update({ body, updated_at: new Date().toISOString() }).eq("id", board.id).then(onChanged);
     }, 800);
     return () => clearTimeout(timer);
-  }, [body, board.id, supabase, onChanged]);
+  }, [body, board.id, supabase, onChanged, tables.boards]);
 
-  async function saveBoard(fields: Partial<PrivateBoard>) {
-    await supabase.from("private_boards").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", board.id);
+  async function saveBoard(fields: Partial<Pick<PrivateBoard, "title" | "body">>) {
+    await supabase.from(tables.boards).update({ ...fields, updated_at: new Date().toISOString() }).eq("id", board.id);
     onChanged();
   }
 
@@ -214,20 +232,20 @@ function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard;
     const lines = adding.split("\n").map((l) => l.trim().replace(/^[-*•]\s*/, "")).filter(Boolean);
     if (!lines.length) return;
     setAdding("");
-    await supabase.from("private_items").insert(lines.map((l) => ({ board_id: board.id, title: l.slice(0, 500) })));
+    await supabase.from(tables.items).insert(lines.map((l) => ({ board_id: board.id, title: l.slice(0, 500) })));
     onChanged();
   }
 
-  async function toggle(item: PrivateItem) {
-    await supabase.from("private_items").update({ done: !item.done }).eq("id", item.id);
+  async function toggle(item: AnyItem) {
+    await supabase.from(tables.items).update({ done: !item.done }).eq("id", item.id);
     onChanged();
   }
 
-  async function remove(item: PrivateItem) {
-    await supabase.from("private_items").delete().eq("id", item.id);
+  async function remove(item: AnyItem) {
+    await supabase.from(tables.items).delete().eq("id", item.id);
     onChanged();
     toast(t("Deleted"), async () => {
-      await supabase.from("private_items").insert(item);
+      await supabase.from(tables.items).insert(item);
       onChanged();
     });
   }
@@ -245,7 +263,7 @@ function BoardView({ board, items, onChanged, onDelete }: { board: PrivateBoard;
         maxLength={80}
       />
       {board.kind === "gifts" ? (
-        <GiftIdeas board={board} items={items} onChanged={onChanged} onToggle={toggle} onRemove={remove} />
+        <GiftIdeas board={board} items={items as PrivateItem[]} onChanged={onChanged} onToggle={toggle} onRemove={remove} />
       ) : board.kind === "note" ? (
         <textarea
           className="input min-h-64"
@@ -300,7 +318,7 @@ function GiftIdeas({
   onToggle,
   onRemove,
 }: {
-  board: PrivateBoard;
+  board: AnyBoard;
   items: PrivateItem[];
   onChanged: () => void;
   onToggle: (i: PrivateItem) => void;

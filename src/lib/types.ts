@@ -26,6 +26,10 @@ export type Member = {
   pickup_time: string | null;
   care_place: string | null;
   care_days: number[];
+  // Kids: current sizes (Wardrobe tile), e.g. "92" and "23".
+  clothing_size: string | null;
+  shoe_size: string | null;
+  sizes_updated_on: string | null;
 };
 
 // A parent saying they can (or can't) do one drop-off or pick-up.
@@ -130,6 +134,8 @@ export type Meal = {
   place: "home" | "out" | "takeaway";
   member_ids: string[];
   notes: string | null;
+  // How a kid took it (kid tab → Food).
+  reaction?: "loved" | "ok" | "refused" | null;
   created_at: string;
 };
 
@@ -193,3 +199,31 @@ export type WorkItem = {
   done_at: string | null;
   created_at: string;
 };
+
+// Kid tab tiles (shared by the family).
+export type KidClothes = {
+  id: string;
+  kid_id: string;
+  title: string;
+  category: string; // ids in src/lib/wardrobe.ts
+  size: string | null;
+  status: "have" | "need" | "outgrown";
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KidSleep = {
+  id: string;
+  kid_id: string;
+  kind: "nap" | "night";
+  starts_at: string;
+  ends_at: string | null; // null = asleep now
+  wakings: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type KidBoard = { id: string; kid_id: string; title: string; emoji: string; kind: "list" | "note"; body: string; position: number; updated_at: string };
+export type KidItem = { id: string; board_id: string; title: string; done: boolean; created_at: string };

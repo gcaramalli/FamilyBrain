@@ -7,10 +7,11 @@ import { KitchenHeader } from "./page-header";
 import { Sheet } from "./sheet";
 import { useToast } from "./toast";
 import { addDays, dayKey, fmtDate, startOfDay } from "@/lib/dates";
-import { FOOD_GROUPS, groupCounts, MEAL_PLACES, MEAL_SLOTS, slotNow, type MealPlace, type MealSlot } from "@/lib/meals";
+import { FOOD_GROUPS, groupCounts, MEAL_PLACES, MEAL_SLOTS, REACTIONS, slotNow, type MealPlace, type MealSlot } from "@/lib/meals";
 import type { Meal, Recipe } from "@/lib/types";
 
-type Draft = Omit<Meal, "id" | "created_at"> & { id?: string };
+export type MealDraft = Omit<Meal, "id" | "created_at"> & { id?: string };
+type Draft = MealDraft;
 
 // Groups whose absence is worth pointing out over a week.
 const WATCH = ["vegetables", "fish", "legumes"];
@@ -112,7 +113,8 @@ export function MealsPanel() {
   );
 }
 
-function MealForm({ initial, recipes, onDone }: { initial: Draft; recipes: Pick<Recipe, "id" | "title">[]; onDone: () => void }) {
+// `kid` (kid tab → Food): also asks how the kid took it.
+export function MealForm({ initial, recipes, onDone, kid }: { initial: Draft; recipes: Pick<Recipe, "id" | "title">[]; onDone: () => void; kid?: string }) {
   const { supabase, members, t } = useFamily();
   const toast = useToast();
   const [d, setD] = useState<Draft>(initial);
@@ -132,6 +134,7 @@ function MealForm({ initial, recipes, onDone }: { initial: Draft; recipes: Pick<
       place: d.place,
       member_ids: d.member_ids,
       notes: d.notes?.trim() || null,
+      reaction: d.reaction ?? null,
     };
     const { error } = d.id ? await supabase.from("meals").update(fields).eq("id", d.id) : await supabase.from("meals").insert(fields);
     if (error) setError(error.message);
@@ -192,6 +195,18 @@ function MealForm({ initial, recipes, onDone }: { initial: Draft; recipes: Pick<
           ))}
         </div>
       </div>
+      {kid && (
+        <div>
+          <span className="label">{t("How did {name} like it?", { name: kid })}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {REACTIONS.map((r) => (
+              <button type="button" key={r.id} onClick={() => set("reaction", d.reaction === r.id ? null : r.id)} className={`chip-toggle ${d.reaction === r.id ? "chip-on" : ""}`}>
+                {r.emoji} {t(r.label)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <input className="input" placeholder={t("Note (optional): loved it, too salty…")} value={d.notes ?? ""} onChange={(e) => set("notes", e.target.value)} />
       {error && <p className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">

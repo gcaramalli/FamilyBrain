@@ -44,6 +44,9 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [x] Connector tools `get_occasions`, `add_occasion`
 - [ ] Connector tools `remember`, `recall`, `get_person`
 - [ ] Charlie's measurements and growth curve
+- [x] Kid tab as tiles: preschool, sleep (naps, nights, wakings → Claude suggests bedtime), wardrobe (sizes, has / to buy,
+      season essentials), food (the kid's meals, loves / refuses), plus the family's own list and note tiles
+- [ ] Breastfeeding / bottle log for newborns (Food tile)
 
 ## 6. If Hembrain becomes a product (Sweden)
 - [x] Swedish, French and English UI, language per account
@@ -52,7 +55,7 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [ ] Per-family limits/abuse protection on open sign-up
 
 ## Later / maybe
-- Child's food diary and BVC milestones, chores, documents vault
+- BVC milestones, chores, documents vault
 - [x] Receipts: photo → Claude → `log_receipt` (purchases with store/price, checks off the list)
 - Kivra: no public API for private users as far as we know — not planned
 

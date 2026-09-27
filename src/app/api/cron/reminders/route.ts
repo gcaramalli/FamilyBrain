@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       sent += await sendPush(adult.profile_id!, {
         title: nobody.length ? `⚠️ ${t("Tomorrow")}` : t("Tomorrow"),
         body: [...mine, ...nobody, ...celebrate].join("\n"),
-        url: nobody.length ? "/kids" : mine.length ? "/" : "/brain?tab=dates",
+        url: nobody.length ? "/kids/preschool" : mine.length ? "/" : "/brain?tab=dates",
         tag: `evening-${key}`,
       });
     }

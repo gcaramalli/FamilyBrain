@@ -7,8 +7,11 @@ import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
+import { ageInMonths } from "@/lib/dates";
+import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
+import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials } from "@/lib/wardrobe";
 import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems } from "@/lib/work";
-import type { WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
+import type { KidClothes, KidSleep, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to the caller's family (see ./context.ts) because the service-role
@@ -38,6 +41,13 @@ Routing:
   and the items to buy. Add to the shopping list only after they agree (add_to_list, skip what is already on it).
 - Receipt photo: read every line, then log_receipt with store, date and items. Use the family's usual item
   names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
+- The kid's sleep ("Charlie fell asleep at 13:10", "slept 19:30 to 6:45, woke twice"): log_sleep. "When should he go to bed
+  tonight?" / "how is he sleeping?": get_kid_sleep, then answer from the last days (wake-up time, nap length and end,
+  awake time since the last nap, wakings) and the usual needs for the kid's age; give a concrete time and say why.
+- The kid's clothes and sizes ("his shoe size is now 24", "we need rain trousers", "what does he need for winter?"):
+  get_wardrobe / update_wardrobe. Suggest what's missing for the season in Sweden (preschool is outdoors in all weather).
+- What the kid ate and how it went ("Charlie refused the fish"): log_meal with who = the kid and reaction. Ideas for the
+  kid's meals: get_meals with who = the kid (loves / refuses) and suggest what fits their age and balances their week.
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
 - Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
@@ -178,6 +188,33 @@ async function memberIdByName(name?: string | null) {
   if (!m) throw new Error(`Unknown family member "${name}". Members: ${(data ?? []).map((x) => x.name).join(", ")}`);
   return m.id;
 }
+
+// A kid by first name; with only one kid in the family, the name is optional.
+async function kidByName(name?: string) {
+  const { data } = await createAdminClient()
+    .from("members")
+    .select("id, name, birthdate, clothing_size, shoe_size, sizes_updated_on")
+    .eq("family_id", familyId())
+    .is("profile_id", null)
+    .order("created_at");
+  const kids = data ?? [];
+  if (!kids.length) throw new Error("This family has no kids.");
+  if (!name) {
+    if (kids.length === 1) return kids[0];
+    throw new Error(`Which kid? ${kids.map((k) => k.name).join(", ")}`);
+  }
+  const n = name.trim().toLowerCase();
+  const kid = kids.find((k) => k.name.toLowerCase() === n) ?? kids.find((k) => k.name.toLowerCase().startsWith(n));
+  if (!kid) throw new Error(`No kid called "${name}". Kids: ${kids.map((k) => k.name).join(", ")}`);
+  return kid;
+}
+
+const stockholmDay = (iso: string) => utcToStockholm(iso).slice(0, 10);
+const stockholmClock = (iso: string) => utcToStockholm(iso).slice(11, 16);
+const stockholmMinutes = (iso: string) => {
+  const [h, m] = stockholmClock(iso).split(":").map(Number);
+  return h * 60 + m;
+};
 
 const eventFields = {
   title: z.string().min(1).optional(),
@@ -836,7 +873,8 @@ export function registerTools(server: McpServer) {
         place: z.enum(["home", "out", "takeaway"]).optional().describe("Default home"),
         who: z.array(z.string()).optional().describe("First names of who ate, if not the whole family"),
         recipe: z.string().optional().describe("Name of a saved recipe, if it was one"),
-        notes: z.string().optional().describe("e.g. 'Charlie loved it', 'too salty'"),
+        notes: z.string().optional().describe("e.g. 'too salty'"),
+        reaction: z.enum(["loved", "ok", "refused"]).optional().describe("How the kid took it (when a kid ate): loved, ok (ate a bit), refused"),
       }),
     },
     async (m) => {
@@ -858,6 +896,7 @@ export function registerTools(server: McpServer) {
         place: m.place ?? "home",
         member_ids: memberIds.filter(Boolean),
         notes: m.notes ?? null,
+        reaction: m.reaction ?? null,
         created_by: createdBy(),
       });
       if (error) throw new Error(error.message);
@@ -869,26 +908,39 @@ export function registerTools(server: McpServer) {
     "get_meals",
     {
       title: "What we ate",
-      description: "The meals journal for the last days, with how many meals touched each food group (to judge balance).",
-      inputSchema: z.object({ days: z.number().int().min(1).max(90).optional().describe("Default 7") }),
+      description:
+        "The meals journal for the last days, with how many meals touched each food group (to judge balance). With 'who' = a kid: that kid's meals (their own and the family's), how they took them, and what they love or refuse over the last 90 days.",
+      inputSchema: z.object({
+        days: z.number().int().min(1).max(90).optional().describe("Default 7"),
+        who: z.string().optional().describe("Only meals this person ate (first name), e.g. the kid"),
+      }),
     },
-    async ({ days }) => {
+    async ({ days, who }) => {
       const db = createAdminClient();
       const since = utcToStockholm(new Date(Date.now() - ((days ?? 7) - 1) * 86400000).toISOString()).slice(0, 10);
-      const [{ data, error }, { data: members }] = await Promise.all([
-        db
-          .from("meals")
-          .select("eaten_on, slot, title, food_groups, place, member_ids, notes")
-          .eq("family_id", familyId())
-          .gte("eaten_on", since)
-          .order("eaten_on")
-          .order("created_at"),
-        db.from("members").select("id, name").eq("family_id", familyId()),
-      ]);
+      const personId = who ? await memberIdByName(who) : null;
+      const tasteSince = utcToStockholm(new Date(Date.now() - 89 * 86400000).toISOString()).slice(0, 10);
+      let query = db
+        .from("meals")
+        .select("eaten_on, slot, title, food_groups, place, member_ids, notes, reaction")
+        .eq("family_id", familyId())
+        .gte("eaten_on", personId ? (tasteSince < since ? tasteSince : since) : since)
+        .order("eaten_on")
+        .order("created_at");
+      if (personId) query = query.or(`member_ids.cs.{${personId}},member_ids.eq.{}`);
+      const [{ data, error }, { data: members }] = await Promise.all([query, db.from("members").select("id, name").eq("family_id", familyId())]);
       if (error) throw new Error(error.message);
       const name = (id: string) => members?.find((x) => x.id === id)?.name ?? "?";
-      const meals = (data ?? []).map(({ member_ids, ...m }) => ({ ...m, who: member_ids.length ? member_ids.map(name) : "everyone" }));
-      return text({ since, meals, food_group_counts: groupCounts(data ?? []) });
+      const all = data ?? [];
+      const inRange = all.filter((m) => m.eaten_on >= since);
+      const meals = inRange.map(({ member_ids, reaction, ...m }) => ({ ...m, who: member_ids.length ? member_ids.map(name) : "everyone", ...(reaction ? { reaction } : {}) }));
+      const tastes = (r: string) => [...new Set(all.filter((m) => m.reaction === r).map((m) => m.title))];
+      return text({
+        since,
+        meals,
+        food_group_counts: groupCounts(inRange),
+        ...(personId ? { loves: tastes("loved"), refuses: tastes("refused") } : {}),
+      });
     },
   );
 
@@ -1220,6 +1272,242 @@ export function registerTools(server: McpServer) {
         : await db.from(table).insert({ ...row, family_id: familyId(), profile_id: ownerId() });
       if (error) throw new Error(error.message);
       return text(`${existing ? "Updated" : "Created"} ${type} "${(new_name ?? existing?.name ?? name).trim()}".`);
+    },
+  );
+
+  server.registerTool(
+    "get_kid_sleep",
+    {
+      title: "Kid's sleep",
+      description:
+        "A kid's naps and nights for the last days (Stockholm time): bedtime, wake-up, night wakings, naps, totals per day, averages, age, and whether the kid is asleep right now or since when awake. Use it to suggest tonight's bedtime or nap times.",
+      inputSchema: z.object({
+        kid: z.string().optional().describe("First name; optional when the family has one kid"),
+        days: z.number().int().min(1).max(30).optional().describe("Default 7"),
+      }),
+    },
+    async ({ kid: kidName, days }) => {
+      const kid = await kidByName(kidName);
+      const n = days ?? 7;
+      const since = new Date(Date.now() - (n + 1) * 86400000).toISOString();
+      const { data, error } = await createAdminClient()
+        .from("kid_sleep")
+        .select("kind, starts_at, ends_at, wakings, notes")
+        .eq("family_id", familyId())
+        .eq("kid_id", kid.id)
+        .gte("starts_at", since)
+        .order("starts_at");
+      if (error) throw new Error(error.message);
+      const entries = (data ?? []) as Pick<KidSleep, "kind" | "starts_at" | "ends_at" | "wakings" | "notes">[];
+      const now = new Date();
+      const today = stockholmDay(now.toISOString());
+      const perDay = sleepDays(entries, stockholmDay, now).filter((d) => d.day >= stockholmDay(new Date(Date.now() - n * 86400000).toISOString()));
+      const full = perDay.filter((d) => d.day < today);
+      const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+      const state = sleepState(entries);
+      const noteOf = (start: string) => entries.find((e) => e.starts_at === start)?.notes ?? undefined;
+      return text({
+        kid: kid.name,
+        age_months: kid.birthdate ? ageInMonths(kid.birthdate) : null,
+        now: utcToStockholm(now.toISOString()),
+        right_now: !state
+          ? "nothing logged"
+          : state.asleep
+            ? `asleep (${state.kind}) since ${stockholmClock(state.since)}, ${minutesBetween(state.since, now)} min`
+            : `awake since ${utcToStockholm(state.since)}, ${minutesBetween(state.since, now)} min`,
+        days: perDay.map((d) => ({
+          day: d.day,
+          night: d.night
+            ? { bedtime: stockholmClock(d.night.start), woke_up: d.night.end ? utcToStockholm(d.night.end) : "still asleep", minutes: d.night.minutes, wakings: d.night.wakings, notes: noteOf(d.night.start) }
+            : null,
+          naps: d.naps.map((x) => ({ from: stockholmClock(x.start), to: x.end ? stockholmClock(x.end) : "still asleep", minutes: x.minutes, notes: noteOf(x.start) })),
+          total_minutes: d.night_minutes + d.nap_minutes,
+        })),
+        averages_full_days: {
+          days: full.length,
+          total_minutes: avg(full.map((d) => d.night_minutes + d.nap_minutes)),
+          night_minutes: avg(full.filter((d) => d.night).map((d) => d.night_minutes)),
+          nap_minutes: avg(full.map((d) => d.nap_minutes)),
+          bedtime: avgClock(full.flatMap((d) => (d.night ? [d.night.start] : [])), stockholmMinutes, true),
+          wake_up: avgClock(full.flatMap((d) => (d.night?.end ? [d.night.end] : [])), stockholmMinutes),
+        },
+        note: entries.length < 5 ? "Little logged so far: say the advice is rough until a few days are in." : undefined,
+      });
+    },
+  );
+
+  server.registerTool(
+    "log_sleep",
+    {
+      title: "Log a kid's sleep",
+      description:
+        "Record a kid's nap or night. 'fell_asleep' starts it (start defaults to now), 'woke_up' ends the sleep in progress (end defaults to now; wakings adds night wakings), 'log' records a whole past sleep (start and end required). Times are Stockholm local (YYYY-MM-DDTHH:MM).",
+      inputSchema: z.object({
+        kid: z.string().optional().describe("First name; optional when the family has one kid"),
+        action: z.enum(["fell_asleep", "woke_up", "log"]),
+        kind: z.enum(["nap", "night"]).optional().describe("Default: night from 17:00 to 05:00, else nap"),
+        start: z.string().optional(),
+        end: z.string().optional(),
+        wakings: z.number().int().min(0).max(30).optional().describe("Night wakings"),
+        notes: z.string().max(500).optional().describe("e.g. 'teething', 'awake 1 h at 3'"),
+      }),
+    },
+    async ({ kid: kidName, action, kind, start, end, wakings, notes }) => {
+      const kid = await kidByName(kidName);
+      const db = createAdminClient();
+      const startIso = start ? stockholmToUtc(start) : new Date().toISOString();
+      const hour = Number(stockholmClock(startIso).slice(0, 2));
+      const k = kind ?? (hour >= 17 || hour < 5 ? "night" : "nap");
+      if (action === "woke_up") {
+        const { data: open } = await db
+          .from("kid_sleep")
+          .select("id, kind, starts_at, wakings")
+          .eq("family_id", familyId())
+          .eq("kid_id", kid.id)
+          .is("ends_at", null)
+          .order("starts_at", { ascending: false })
+          .limit(1);
+        const cur = open?.[0];
+        if (!cur) throw new Error(`${kid.name} has no sleep in progress. Use action "log" with start and end.`);
+        const endIso = end ? stockholmToUtc(end) : new Date().toISOString();
+        if (endIso <= cur.starts_at) throw new Error(`The sleep in progress started at ${utcToStockholm(cur.starts_at)}; the end must be after it.`);
+        const { error } = await db
+          .from("kid_sleep")
+          .update({ ends_at: endIso, wakings: cur.wakings + (wakings ?? 0), ...(notes ? { notes } : {}) })
+          .eq("id", cur.id)
+          .eq("family_id", familyId());
+        if (error) throw new Error(error.message);
+        return text(`${kid.name} woke up at ${stockholmClock(endIso)} after a ${cur.kind} of ${minutesBetween(cur.starts_at, endIso)} min.`);
+      }
+      if (action === "log" && (!start || !end)) throw new Error('"log" needs start and end.');
+      const endIso = action === "log" && end ? stockholmToUtc(end) : null;
+      if (endIso && endIso <= startIso) throw new Error("The end must be after the start.");
+      const { error } = await db.from("kid_sleep").insert({
+        family_id: familyId(),
+        kid_id: kid.id,
+        kind: k,
+        starts_at: startIso,
+        ends_at: endIso,
+        wakings: wakings ?? 0,
+        notes: notes ?? null,
+        created_by: createdBy(),
+      });
+      if (error) throw new Error(error.message);
+      return text(
+        endIso
+          ? `Logged ${kid.name}'s ${k} on ${k === "night" ? nightDay(startIso, stockholmDay) : stockholmDay(startIso)}: ${stockholmClock(startIso)} → ${stockholmClock(endIso)} (${minutesBetween(startIso, endIso)} min).`
+          : `${kid.name} fell asleep (${k}) at ${stockholmClock(startIso)}.`,
+      );
+    },
+  );
+
+  server.registerTool(
+    "get_wardrobe",
+    {
+      title: "Kid's wardrobe",
+      description:
+        "A kid's clothing and shoe sizes, the clothes they have (by category, with size), what's on the to-buy list, what's too small, and the season's essentials nothing covers yet.",
+      inputSchema: z.object({ kid: z.string().optional().describe("First name; optional when the family has one kid") }),
+    },
+    async ({ kid: kidName }) => {
+      const kid = await kidByName(kidName);
+      const { data, error } = await createAdminClient()
+        .from("kid_clothes")
+        .select("title, category, size, status, notes")
+        .eq("family_id", familyId())
+        .eq("kid_id", kid.id)
+        .order("created_at");
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as Pick<KidClothes, "title" | "category" | "size" | "status" | "notes">[];
+      const out = (r: (typeof rows)[number]) => ({ title: r.title, size: r.size ?? undefined, notes: r.notes ?? undefined });
+      const has: Record<string, ReturnType<typeof out>[]> = {};
+      for (const r of rows.filter((x) => x.status === "have")) (has[r.category] ??= []).push(out(r));
+      return text({
+        kid: kid.name,
+        age_months: kid.birthdate ? ageInMonths(kid.birthdate) : null,
+        clothing_size: kid.clothing_size,
+        shoe_size: kid.shoe_size,
+        sizes_updated_on: kid.sizes_updated_on,
+        season: coldSeason() ? "cold (October–April)" : "warm (May–September)",
+        has,
+        to_buy: rows.filter((x) => x.status === "need").map(out),
+        too_small: rows.filter((x) => x.status === "outgrown").map(out),
+        missing_essentials: missingEssentials(rows, (x) => x).map((e) => e.title),
+        categories: CLOTHES_CATEGORY_IDS,
+      });
+    },
+  );
+
+  server.registerTool(
+    "update_wardrobe",
+    {
+      title: "Update a kid's wardrobe",
+      description:
+        "Set a kid's sizes, add clothes they have or need to buy, and mark to-buy items as bought (matched by title). Tell the user what changed.",
+      inputSchema: z.object({
+        kid: z.string().optional().describe("First name; optional when the family has one kid"),
+        clothing_size: z.string().max(20).optional().describe("e.g. '92' (cm, Nordic sizing)"),
+        shoe_size: z.string().max(20).optional().describe("EU size, e.g. '23'"),
+        add: z
+          .array(
+            z.object({
+              title: z.string().min(1).max(200),
+              category: z.enum(CLOTHES_CATEGORY_IDS).optional().describe(CLOTHES_CATEGORIES.map((c) => `${c.id} = ${c.label}`).join("; ")),
+              size: z.string().max(20).optional().describe("Default: the kid's current size (shoe size for shoes)"),
+              status: z.enum(["have", "need", "outgrown"]).optional().describe("have (default), need = to buy, outgrown = too small"),
+              notes: z.string().max(500).optional(),
+            }),
+          )
+          .optional(),
+        bought: z.array(z.string()).optional().describe("Titles on the to-buy list that were bought"),
+      }),
+    },
+    async ({ kid: kidName, clothing_size, shoe_size, add, bought }) => {
+      const kid = await kidByName(kidName);
+      const db = createAdminClient();
+      const done: string[] = [];
+      if (clothing_size !== undefined || shoe_size !== undefined) {
+        const row: Record<string, unknown> = { sizes_updated_on: stockholmDay(new Date().toISOString()) };
+        if (clothing_size !== undefined) row.clothing_size = clothing_size.trim() || null;
+        if (shoe_size !== undefined) row.shoe_size = shoe_size.trim() || null;
+        const { error } = await db.from("members").update(row).eq("id", kid.id).eq("family_id", familyId());
+        if (error) throw new Error(error.message);
+        done.push(`sizes: clothes ${clothing_size ?? kid.clothing_size ?? "?"}, shoes ${shoe_size ?? kid.shoe_size ?? "?"}`);
+      }
+      const clothes = (clothing_size ?? kid.clothing_size) || null;
+      const shoes = (shoe_size ?? kid.shoe_size) || null;
+      if (add?.length) {
+        const { error } = await db.from("kid_clothes").insert(
+          add.map((a) => ({
+            family_id: familyId(),
+            kid_id: kid.id,
+            title: a.title.trim(),
+            category: a.category ?? "other",
+            size: a.size ?? (a.category === "shoes" ? shoes : clothes),
+            status: a.status ?? "have",
+            notes: a.notes ?? null,
+            created_by: createdBy(),
+          })),
+        );
+        if (error) throw new Error(error.message);
+        done.push(`added ${add.map((a) => `${a.title} (${a.status ?? "have"})`).join(", ")}`);
+      }
+      if (bought?.length) {
+        const { data: need } = await db.from("kid_clothes").select("id, title").eq("family_id", familyId()).eq("kid_id", kid.id).eq("status", "need");
+        const missing: string[] = [];
+        for (const b of bought) {
+          const n = b.trim().toLowerCase();
+          const hit = (need ?? []).find((x) => x.title.toLowerCase() === n) ?? (need ?? []).find((x) => x.title.toLowerCase().includes(n));
+          if (!hit) {
+            missing.push(b);
+            continue;
+          }
+          await db.from("kid_clothes").update({ status: "have", updated_at: new Date().toISOString() }).eq("id", hit.id).eq("family_id", familyId());
+          done.push(`bought ${hit.title}`);
+        }
+        if (missing.length) done.push(`not on the to-buy list: ${missing.join(", ")} (add them with status "have" if needed)`);
+      }
+      return text(done.length ? `${kid.name}: ${done.join("; ")}.` : "Nothing to change.");
     },
   );
 }
