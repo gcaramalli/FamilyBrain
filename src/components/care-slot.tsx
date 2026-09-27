@@ -115,11 +115,8 @@ export function CareSlot({
         } ${error ? "border-danger" : ""}`}
         style={goer ? { background: `color-mix(in srgb, ${goer.color} 14%, transparent)` } : undefined}
       >
-        {goer ? (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ background: goer.color }}>
-            {goer.name.slice(0, 1)}
-          </span>
-        ) : (
+        {/* Someone's going: the slot wears their colour, so their name has the room. */}
+        {goer ? null : (
           <span className="flex shrink-0 -space-x-1.5">
             {adults.map((a) => (
               <Answer key={a.id} person={a} answer={answer(a)} />

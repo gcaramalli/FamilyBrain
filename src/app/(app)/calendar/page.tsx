@@ -10,7 +10,11 @@ import { Sheet } from "@/components/sheet";
 import { addDays, dayKey, fmtDate, formatDayHeading, startOfDay } from "@/lib/dates";
 import { groupByDay, isMultiDay } from "@/lib/events";
 import { fetchCalendar } from "@/lib/occasions";
-import type { EventOccurrence, Member } from "@/lib/types";
+import { MODULES } from "@/lib/modules";
+import type { EventOccurrence, ListItem, Member } from "@/lib/types";
+import { MemberBadge } from "@/components/member-select";
+import { useToast } from "@/components/toast";
+import Link from "next/link";
 
 type Mode = "month" | "week" | "agenda";
 const AGENDA_DAYS = 14;
@@ -68,6 +72,8 @@ export default function CalendarPage() {
   const [anchor, setAnchor] = useState(() => new Date());
   const [focus, setFocus] = useState<string | null>(null);
   const [allEvents, setEvents] = useState<EventOccurrence[]>([]);
+  const [allTodos, setTodos] = useState<ListItem[]>([]);
+  const toast = useToast();
   const [editing, setEditing] = useState<Parameters<typeof EventForm>[0]["initial"] | null>(null);
 
   const from = mode === "month" ? startOfMonthGrid(anchor) : mode === "week" ? startOfWeek(anchor) : startOfDay(anchor);
@@ -76,8 +82,29 @@ export default function CalendarPage() {
 
   const load = useCallback(async () => {
     const start = new Date(fromKey + "T00:00:00");
-    setEvents(await fetchCalendar(supabase, members, start, addDays(start, span), t));
+    const [evs, todos] = await Promise.all([
+      fetchCalendar(supabase, members, start, addDays(start, span), t),
+      // To-dos with a due date show up on their day, until they are done.
+      supabase
+        .from("list_items")
+        .select("*, lists!inner(kind)")
+        .eq("lists.kind", "todo")
+        .eq("done", false)
+        .gte("due_date", fromKey)
+        .lt("due_date", dayKey(addDays(start, span))),
+    ]);
+    setEvents(evs);
+    setTodos((todos.data ?? []) as ListItem[]);
   }, [supabase, members, t, fromKey, span]);
+
+  async function checkTodo(item: ListItem) {
+    setTodos((xs) => xs.filter((x) => x.id !== item.id));
+    await supabase.from("list_items").update({ done: true, done_at: new Date().toISOString() }).eq("id", item.id);
+    toast(t("Done: {item}", { item: item.title }), async () => {
+      await supabase.from("list_items").update({ done: false, done_at: null }).eq("id", item.id);
+      load();
+    });
+  }
 
   useEffect(() => {
     load();
@@ -98,6 +125,14 @@ export default function CalendarPage() {
 
   const days = useMemo(() => Array.from({ length: span }, (_, i) => addDays(new Date(fromKey + "T00:00:00"), i)), [fromKey, span]);
   const byDay = useMemo(() => groupByDay(events), [events]);
+  const todosByDay = useMemo(() => {
+    const map = new Map<string, ListItem[]>();
+    for (const i of allTodos) {
+      if (!i.due_date || (who && i.assignee_member_id !== who)) continue;
+      map.set(i.due_date, [...(map.get(i.due_date) ?? []), i]);
+    }
+    return map;
+  }, [allTodos, who]);
 
   // Coming from the month view: bring the tapped day into view.
   useEffect(() => {
@@ -202,6 +237,7 @@ export default function CalendarPage() {
                   </span>
                   <span className="flex flex-wrap justify-center gap-0.5">
                     <Initials events={list} max={3} />
+                    {todosByDay.has(k) && <span aria-hidden className="mt-1 h-1.5 w-1.5 rounded-full" style={{ background: MODULES.todo.color }} />}
                   </span>
                 </button>
               );
@@ -241,15 +277,29 @@ export default function CalendarPage() {
           {days.map((day) => {
             const k = dayKey(day);
             const list = byDay.get(k) ?? [];
-            if (mode === "week" && list.length === 0 && k !== focus) return null;
+            const todos = todosByDay.get(k) ?? [];
+            if (mode === "week" && list.length === 0 && todos.length === 0 && k !== focus) return null;
             return (
               <section key={k} id={`day-${k}`} className={`card scroll-mt-20 py-3 ${k === focus ? "border-accent" : ""}`}>
                 <div className="flex items-center justify-between">
                   <h2 className="font-semibold capitalize">{formatDayHeading(day)}</h2>
                   <button className="min-h-9 px-1 text-sm font-medium text-accent" onClick={() => setEditing(newEventDraft(day, me))}>+ {t("Add")}</button>
                 </div>
+                {todos.length > 0 && (
+                  <ul className="mt-1 flex flex-col">
+                    {todos.map((i) => (
+                      <li key={i.id} className="flex min-h-11 items-center gap-3">
+                        <button onClick={() => checkTodo(i)} aria-label={t("Mark as done")} className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center">
+                          <span className="h-5 w-5 rounded-md border-[1.5px]" style={{ borderColor: MODULES.todo.color }} />
+                        </button>
+                        <Link href="/todo" className="min-w-0 flex-1 truncate">{i.title}</Link>
+                        <MemberBadge id={i.assignee_member_id} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {list.length === 0 ? (
-                  <p className="py-1 text-sm text-muted">{t("Nothing planned")}</p>
+                  todos.length === 0 && <p className="py-1 text-sm text-muted">{t("Nothing planned")}</p>
                 ) : (
                   <div className="divide-y divide-border">
                     {list.map((ev) => (
@@ -260,7 +310,7 @@ export default function CalendarPage() {
               </section>
             );
           })}
-          {mode === "week" && events.length === 0 && !focus && <p className="card text-sm text-muted">{t("Nothing planned this week.")}</p>}
+          {mode === "week" && events.length === 0 && todosByDay.size === 0 && !focus && <p className="card text-sm text-muted">{t("Nothing planned this week.")}</p>}
         </div>
       )}
 
