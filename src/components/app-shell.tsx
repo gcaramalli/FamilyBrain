@@ -16,14 +16,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  // The Kids tab only shows up for families with a child. The family brain is
-  // reached from a tile on Today: it is fed mostly through Claude, rarely opened.
+  // The Kids tab only shows up for families with a child, in the middle. Then
+  // Meals is reached from the "Tonight?" tile on Today, like the family brain
+  // (both are fed mostly through Claude). My private space sits bottom right.
   const tabs = [
     { href: "/", label: t("Today"), icon: "🏠" },
     { href: "/calendar", label: t("Calendar"), icon: "📅" },
-    ...(kids.length ? [{ href: "/kids", label: kids.length === 1 ? kids[0].name : t("Kids"), icon: kids.length === 1 ? kids[0].emoji : "👶" }] : []),
+    ...(kids.length
+      ? [{ href: "/kids", label: kids.length === 1 ? kids[0].name : t("Kids"), icon: kids.length === 1 ? kids[0].emoji : "👶" }]
+      : []),
     { href: "/lists", label: t("Lists"), icon: "🛒" },
-    { href: "/recipes", label: t("Meals"), icon: "🍽" },
+    ...(kids.length ? [] : [{ href: "/recipes", label: t("Meals"), icon: "🍽" }]),
+    { href: "/private", label: t("Private"), icon: "🔒" },
   ];
 
   return (

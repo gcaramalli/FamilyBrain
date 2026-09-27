@@ -151,3 +151,22 @@ export type Gift = {
   created_at: string;
   opened_at: string | null;
 };
+
+// Private space: only the owner's account can read these (RLS on profile_id).
+export type PrivateBoard = {
+  id: string;
+  title: string;
+  emoji: string;
+  kind: "list" | "note";
+  body: string;
+  position: number;
+  updated_at: string;
+};
+
+export type PrivateItem = {
+  id: string;
+  board_id: string;
+  title: string;
+  done: boolean;
+  created_at: string;
+};
