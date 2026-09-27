@@ -138,7 +138,7 @@ function KidCard({ kid, events, answers, onChanged }: { kid: Member; events: Eve
       : []),
   ];
   return (
-    <section className="flex flex-col gap-3 rounded-2xl p-4" style={{ background: `color-mix(in srgb, ${kid.color} 10%, var(--surface))` }}>
+    <section className="flex flex-col gap-3 rounded-2xl p-4" style={{ background: `linear-gradient(140deg, color-mix(in srgb, ${kid.color} 18%, var(--surface)) 0%, var(--surface) 65%)`, boxShadow: "var(--lift)" }}>
       <div className="flex items-baseline justify-between">
         <h2 className="h2">{kid.emoji} {kid.name}</h2>
         <Link href="/kids" className="text-sm font-medium text-accent">{t("Plan the week")} →</Link>

@@ -496,4 +496,5 @@ export const fr: Record<string, string> = {
   "Nothing left to do": "Rien à faire",
   "1 thing to do": "1 chose à faire",
   "{n} things to do": "{n} choses à faire",
+  "Done: {item}": "Fait : {item}",
 };

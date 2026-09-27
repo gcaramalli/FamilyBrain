@@ -496,4 +496,5 @@ export const sv: Record<string, string> = {
   "Nothing left to do": "Inget kvar att göra",
   "1 thing to do": "1 sak att göra",
   "{n} things to do": "{n} saker att göra",
+  "Done: {item}": "Klart: {item}",
 };
