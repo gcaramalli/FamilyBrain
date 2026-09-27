@@ -12,9 +12,7 @@ import { groupByDay, isMultiDay } from "@/lib/events";
 import { fetchCalendar } from "@/lib/occasions";
 import { MODULES } from "@/lib/modules";
 import type { EventOccurrence, ListItem, Member } from "@/lib/types";
-import { MemberBadge } from "@/components/member-select";
-import { useToast } from "@/components/toast";
-import Link from "next/link";
+import { fetchDueTodos, TodoRow, todoDay } from "@/components/todo-row";
 
 type Mode = "month" | "week" | "agenda";
 const AGENDA_DAYS = 14;
@@ -73,7 +71,6 @@ export default function CalendarPage() {
   const [focus, setFocus] = useState<string | null>(null);
   const [allEvents, setEvents] = useState<EventOccurrence[]>([]);
   const [allTodos, setTodos] = useState<ListItem[]>([]);
-  const toast = useToast();
   const [editing, setEditing] = useState<Parameters<typeof EventForm>[0]["initial"] | null>(null);
 
   const from = mode === "month" ? startOfMonthGrid(anchor) : mode === "week" ? startOfWeek(anchor) : startOfDay(anchor);
@@ -84,27 +81,13 @@ export default function CalendarPage() {
     const start = new Date(fromKey + "T00:00:00");
     const [evs, todos] = await Promise.all([
       fetchCalendar(supabase, members, start, addDays(start, span), t),
-      // To-dos with a due date show up on their day, until they are done.
-      supabase
-        .from("list_items")
-        .select("*, lists!inner(kind)")
-        .eq("lists.kind", "todo")
-        .eq("done", false)
-        .gte("due_date", fromKey)
-        .lt("due_date", dayKey(addDays(start, span))),
+      // To-dos with a due date show up on their day (late ones on today) until done.
+      fetchDueTodos(supabase, dayKey(addDays(start, span - 1))),
     ]);
     setEvents(evs);
-    setTodos((todos.data ?? []) as ListItem[]);
+    setTodos(todos);
   }, [supabase, members, t, fromKey, span]);
 
-  async function checkTodo(item: ListItem) {
-    setTodos((xs) => xs.filter((x) => x.id !== item.id));
-    await supabase.from("list_items").update({ done: true, done_at: new Date().toISOString() }).eq("id", item.id);
-    toast(t("Done: {item}", { item: item.title }), async () => {
-      await supabase.from("list_items").update({ done: false, done_at: null }).eq("id", item.id);
-      load();
-    });
-  }
 
   useEffect(() => {
     load();
@@ -128,8 +111,9 @@ export default function CalendarPage() {
   const todosByDay = useMemo(() => {
     const map = new Map<string, ListItem[]>();
     for (const i of allTodos) {
-      if (!i.due_date || (who && i.assignee_member_id !== who)) continue;
-      map.set(i.due_date, [...(map.get(i.due_date) ?? []), i]);
+      if (who && i.assignee_member_id !== who) continue;
+      const k = todoDay(i);
+      map.set(k, [...(map.get(k) ?? []), i]);
     }
     return map;
   }, [allTodos, who]);
@@ -288,13 +272,7 @@ export default function CalendarPage() {
                 {todos.length > 0 && (
                   <ul className="mt-1 flex flex-col">
                     {todos.map((i) => (
-                      <li key={i.id} className="flex min-h-11 items-center gap-3">
-                        <button onClick={() => checkTodo(i)} aria-label={t("Mark as done")} className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center">
-                          <span className="h-5 w-5 rounded-md border-[1.5px]" style={{ borderColor: MODULES.todo.color }} />
-                        </button>
-                        <Link href="/todo" className="min-w-0 flex-1 truncate">{i.title}</Link>
-                        <MemberBadge id={i.assignee_member_id} />
-                      </li>
+                      <TodoRow key={i.id} item={i} onDone={(x, done) => (done ? setTodos((xs) => xs.filter((y) => y.id !== x.id)) : load())} />
                     ))}
                   </ul>
                 )}
