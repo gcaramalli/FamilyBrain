@@ -99,6 +99,8 @@ Rules of thumb:
   `src/lib/i18n/fr.ts` / `sv.ts`; `npm run i18n:check` lists what's missing. Format dates with `fmtDate` (`src/lib/dates.ts`).
 - No `prompt()`/`confirm()`/`alert()`: deletions act at once and offer Undo (`useToast`), irreversible ones use `ConfirmButton`.
 - Colour means a person (member colours); the interface itself is ink-on-paper (`--accent` is ink).
+- Icons: `lucide-react` line icons for the interface (tabs, buttons, section titles); emoji only for what people
+  choose themselves (a kid's emoji, private tiles, gifts). A kid's tab shows their initial in their colour.
 - Optional server env: `ANTHROPIC_API_KEY` (receipt scan + "type it" event entry, `src/lib/ai.ts`),
   `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` (reminders, `src/lib/push.ts`) and `CRON_SECRET`
   (`/api/cron/reminders`, daily at 17:00 UTC via `vercel.json`). Features hide themselves when unset.

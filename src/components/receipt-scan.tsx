@@ -1,5 +1,6 @@
 "use client";
 
+import { Camera } from "lucide-react";
 import { useRef, useState } from "react";
 import { useFamily } from "./family-context";
 import { Sheet } from "./sheet";
@@ -76,7 +77,7 @@ export function ReceiptScan({ onLogged }: { onLogged: () => void }) {
 
   return (
     <>
-      <button className="btn-ghost" onClick={() => (ai ? input.current?.click() : setState("help"))}>📷 {t("Scan a receipt")}</button>
+      <button className="btn-ghost" onClick={() => (ai ? input.current?.click() : setState("help"))}><Camera size={16} /> {t("Scan a receipt")}</button>
       <input
         ref={input}
         type="file"
@@ -98,7 +99,7 @@ export function ReceiptScan({ onLogged }: { onLogged: () => void }) {
       </Sheet>
 
       <Sheet open={state === "reading" || state === "review"} onClose={() => setState("idle")} title={t("Receipt")}>
-        {state === "reading" && <p className="py-8 text-center text-muted">🧾 {t("Reading the receipt…")}</p>}
+        {state === "reading" && <p className="py-8 text-center text-muted">{t("Reading the receipt…")}</p>}
         {state === "review" && error && !result && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-danger">{error}</p>

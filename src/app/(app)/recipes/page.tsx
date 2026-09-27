@@ -1,5 +1,6 @@
 "use client";
 
+import { Dices, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
@@ -64,7 +65,7 @@ function RecipesPanel() {
 
       <div className="flex gap-2">
         <input className="input" placeholder={t("Search by name, ingredient, tag…")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="btn-ghost shrink-0" onClick={surprise} disabled={!recipes.length} aria-label={t("Idea")}>🎲</button>
+        <button className="btn-ghost shrink-0" onClick={surprise} disabled={!recipes.length} aria-label={t("Idea")}><Dices size={18} /></button>
       </div>
 
       {tags.length > 0 && (
@@ -161,7 +162,7 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
       {recipe.description && <p className="text-muted">{recipe.description}</p>}
       <div className="flex flex-wrap gap-1">
         {recipe.prep_minutes && <span className="chip">⏱ {recipe.prep_minutes} min</span>}
-        {recipe.servings && <span className="chip">🍽 {recipe.servings}</span>}
+        {recipe.servings && <span className="chip inline-flex items-center gap-1"><Users size={12} /> {recipe.servings}</span>}
         {recipe.tags.map((x) => <span key={x} className="chip">{x}</span>)}
       </div>
       {recipe.ingredients.length > 0 && (
@@ -171,7 +172,7 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
             {recipe.ingredients.map((i, n) => <li key={n}>{i}</li>)}
           </ul>
           <button className="btn-ghost mt-2" onClick={addToGroceries} disabled={added}>
-            {added ? `✓ ${t("Added to groceries")}` : `🛒 ${t("Add all to groceries")}`}
+            {added ? `✓ ${t("Added to groceries")}` : t("Add all to groceries")}
           </button>
         </div>
       )}
@@ -185,7 +186,7 @@ function RecipeView({ recipe, onEdit }: { recipe: Recipe; onEdit: () => void }) 
         <a href={recipe.source_url} target="_blank" rel="noreferrer" className="text-sm text-accent underline">{t("Original recipe")}</a>
       )}
       <div className="flex gap-2">
-        <button className="btn-ghost flex-1" onClick={weAteThis} disabled={ate}>{ate ? `✓ ${t("Logged")}` : `🍽 ${t("We ate this")}`}</button>
+        <button className="btn-ghost flex-1" onClick={weAteThis} disabled={ate}>{ate ? `✓ ${t("Logged")}` : t("We ate this")}</button>
         <button className="btn-ghost" onClick={onEdit}>{t("Edit")}</button>
       </div>
     </div>

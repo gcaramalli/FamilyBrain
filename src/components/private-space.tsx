@@ -135,7 +135,7 @@ export function PrivateSpace() {
                   onClick={() => setCreating({ ...creating, kind: k })}
                   className={`min-h-9 rounded-lg ${creating.kind === k ? "bg-accent font-medium text-on-accent" : ""}`}
                 >
-                  {k === "list" ? `☑️ ${t("List")}` : k === "gifts" ? `🎁 ${t("Gifts")}` : `📝 ${t("Note")}`}
+                  {k === "list" ? t("List") : k === "gifts" ? t("Gifts") : t("Note")}
                 </button>
               ))}
             </div>

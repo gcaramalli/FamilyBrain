@@ -1,5 +1,6 @@
 "use client";
 
+import { Pin } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { OccasionsPanel } from "@/components/occasions-panel";
@@ -74,7 +75,7 @@ export default function BrainPage() {
       <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
         {(["notes", "dates"] as const).map((x) => (
           <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
-            {x === "notes" ? `📝 ${t("Notes")}` : `💍 ${t("Dates")}`}
+            {x === "notes" ? t("Notes") : t("Dates")}
           </button>
         ))}
       </div>
@@ -85,7 +86,7 @@ export default function BrainPage() {
         {filtered.map((n) => (
           <li key={n.id}>
             <button className="card w-full text-left" onClick={() => setEditing({ id: n.id, title: n.title, body: n.body, pinned: n.pinned, tags: n.tags.join(", ") })}>
-              <div className="font-semibold">{n.pinned && "📌 "}{n.title}</div>
+              <div className="flex items-center gap-1.5 font-semibold">{n.pinned && <Pin size={14} className="shrink-0" aria-label={t("Pinned")} />}{n.title}</div>
               <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{n.body}</p>
               {n.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">{n.tags.map((x) => <span key={x} className="chip">{x}</span>)}</div>

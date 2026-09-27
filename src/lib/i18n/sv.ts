@@ -482,4 +482,5 @@ export const sv: Record<string, string> = {
   "Clear my answer": "Rensa mitt svar",
   "Only you can see this.": "Bara du ser det här.",
   "Close": "Stäng",
+  "Pinned": "Fäst",
 };

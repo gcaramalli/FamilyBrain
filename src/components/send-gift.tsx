@@ -52,7 +52,7 @@ export function SendGift() {
 
   return (
     <section className="card flex flex-col gap-3">
-      <h2 className="h2">💌 {t("Send a little something")}</h2>
+      <h2 className="h2">{t("Send a little something")}</h2>
       {people.length > 1 && (
         <div className="flex flex-wrap gap-2">
           {people.map((p) => (

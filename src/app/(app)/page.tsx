@@ -145,7 +145,7 @@ function KidCard({ kid, events, answers, onChanged }: { kid: Member; events: Eve
         return (
           <div key={k} className="flex flex-col gap-1.5">
             <span className="text-sm font-medium capitalize">
-              {label} <span className="font-normal text-muted">· ☀️ {t("Drop-off")} · 🌙 {t("Pick-up")}</span>
+              {label}
             </span>
             <div className="grid grid-cols-2 gap-2">
               {CARE_KINDS.map((kind, i) => (
