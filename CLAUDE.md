@@ -99,6 +99,9 @@ Rules of thumb:
   `src/lib/i18n/fr.ts` / `sv.ts`; `npm run i18n:check` lists what's missing. Format dates with `fmtDate` (`src/lib/dates.ts`).
 - No `prompt()`/`confirm()`/`alert()`: deletions act at once and offer Undo (`useToast`), irreversible ones use `ConfirmButton`.
 - Colour means a person (member colours); the interface itself is ink-on-paper (`--accent` is ink).
+- Look: page titles in Fraunces (`.h1`, soft serif), body in Geist; surfaces float on the paper (`--lift` shadow, no
+  outline; outline `--edge` in dark mode); pill buttons; segmented controls are a white pill on a soft track; the
+  tab bar floats. A person shows as a dot in their colour + name (`MemberBadge`).
 - Icons: `lucide-react` line icons for the interface (tabs, buttons, section titles); emoji only for what people
   choose themselves (a kid's emoji, private tiles, gifts). A kid's tab shows their initial in their colour.
 - Optional server env: `ANTHROPIC_API_KEY` (receipt scan + "type it" event entry, `src/lib/ai.ts`),

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useFamily } from "@/components/family-context";
 import { PageHeader } from "@/components/page-header";
 import { PrivateSpace } from "@/components/private-space";
-import { SendGift } from "@/components/send-gift";
 
 // Me: my private tiles first, then everything that is set once and looked
 // for later (profile, reminders, AI, family settings).
@@ -44,7 +43,6 @@ export default function MePage() {
         ))}
       </nav>
 
-      <SendGift />
     </div>
   );
 }

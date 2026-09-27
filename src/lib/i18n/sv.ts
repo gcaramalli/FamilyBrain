@@ -483,4 +483,9 @@ export const sv: Record<string, string> = {
   "Only you can see this.": "Bara du ser det här.",
   "Close": "Stäng",
   "Pinned": "Fäst",
+  // Gifts: take back
+  "Could not send": "Kunde inte skicka",
+  "Taken back. {name} will never know.": "Återtagen. {name} får aldrig veta.",
+  "Too late, {name} already unwrapped it.": "För sent, {name} har redan öppnat den.",
+  "Take it back": "Ta tillbaka",
 };

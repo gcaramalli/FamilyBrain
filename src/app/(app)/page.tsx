@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventRow } from "@/components/event-row";
+import { SendGift } from "@/components/send-gift";
 import { CARE_KINDS, careKind, fetchAvailability, findSlot, isCareDay, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
@@ -110,6 +111,8 @@ export default function TodayPage() {
           <span className="text-muted">→</span>
         </Link>
       </nav>
+
+      <SendGift />
     </div>
   );
 }

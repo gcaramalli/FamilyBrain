@@ -105,7 +105,7 @@ export function CareSlot({
     if (next !== mine) change(next);
   };
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <button
         onClick={() => setOpen(true)}
         disabled={!me}

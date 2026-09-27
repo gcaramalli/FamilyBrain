@@ -483,4 +483,9 @@ export const fr: Record<string, string> = {
   "Only you can see this.": "Personne d'autre que toi ne le voit.",
   "Close": "Fermer",
   "Pinned": "Épinglée",
+  // Gifts: take back
+  "Could not send": "Envoi impossible",
+  "Taken back. {name} will never know.": "Repris. {name} n'en saura rien.",
+  "Too late, {name} already unwrapped it.": "Trop tard, {name} l'a déjà ouvert.",
+  "Take it back": "Reprendre",
 };
