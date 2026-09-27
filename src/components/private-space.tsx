@@ -144,7 +144,7 @@ export function PrivateSpace() {
                   type="button"
                   key={k}
                   onClick={() => setCreating({ ...creating, kind: k })}
-                  className={`min-h-9 rounded-full ${creating.kind === k ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
+                  className={`min-h-9 rounded-full ${creating.kind === k ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
                 >
                   {k === "list" ? t("List") : k === "gifts" ? t("Gifts") : t("Note")}
                 </button>

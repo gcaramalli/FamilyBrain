@@ -74,7 +74,7 @@ export default function BrainPage() {
       />
       <div className="grid grid-cols-2 rounded-full bg-accent-soft p-1 text-sm">
         {(["notes", "dates"] as const).map((x) => (
-          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-full ${tab === x ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}>
+          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-full ${tab === x ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}>
             {x === "notes" ? t("Notes") : t("Dates")}
           </button>
         ))}

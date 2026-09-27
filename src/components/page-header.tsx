@@ -53,7 +53,7 @@ export function Segments({ items }: { items: { href: string; label: string }[] }
             key={x.href}
             href={x.href}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-9 items-center justify-center truncate rounded-full px-1 transition-colors ${active ? "bg-surface font-semibold shadow-sm" : "text-muted"}`}
+            className={`flex min-h-9 items-center justify-center truncate rounded-full px-1 transition-colors ${active ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
           >
             {x.label}
           </Link>
@@ -77,5 +77,18 @@ export function KitchenHeader({ action }: { action?: React.ReactNode }) {
         ]}
       />
     </PageHeader>
+  );
+}
+
+// The Calendar tab: when things happen, and what there is to do.
+export function CalendarSegments() {
+  const { t } = useFamily();
+  return (
+    <Segments
+      items={[
+        { href: "/calendar", label: t("Calendar") },
+        { href: "/todo", label: t("To-do") },
+      ]}
+    />
   );
 }

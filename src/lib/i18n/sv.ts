@@ -488,4 +488,12 @@ export const sv: Record<string, string> = {
   "Taken back. {name} will never know.": "Återtagen. {name} får aldrig veta.",
   "Too late, {name} already unwrapped it.": "För sent, {name} har redan öppnat den.",
   "Take it back": "Ta tillbaka",
+  // To-do in Calendar
+  "Create a to-do list": "Skapa en att göra-lista",
+  "Create a shopping list": "Skapa en inköpslista",
+  "Name, e.g. Weekend chores": "Namn, t.ex. Helgsysslor",
+  "Name, e.g. IKEA": "Namn, t.ex. IKEA",
+  "Nothing left to do": "Inget kvar att göra",
+  "1 thing to do": "1 sak att göra",
+  "{n} things to do": "{n} saker att göra",
 };
