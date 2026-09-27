@@ -171,6 +171,7 @@ export const sv: Record<string, string> = {
   "Note (e.g. for breakfast, organic)": "Notering (t.ex. till frukost, ekologisk)",
   "Note deleted": "Anteckningen raderad",
   "Notes": "Anteckningar",
+  "Notes and dates worth remembering": "Anteckningar och datum att minnas",
   "Notes (allergies, sizes, school…)": "Anteckningar (allergier, storlekar, skola…)",
   "Notes: what we gave, a memory, gift ideas…": "Anteckningar: vad vi gav, ett minne, presentidéer…",
   "Nothing else planned.": "Inget annat planerat.",

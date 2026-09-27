@@ -128,6 +128,13 @@ export default function TodayPage() {
           </div>
           <span className="text-muted">→</span>
         </Link>
+        <Link href="/brain" className="flex min-h-14 items-center justify-between gap-3 py-2">
+          <div>
+            <div className="font-medium">🧠 {t("Family brain")}</div>
+            <p className="text-sm text-muted">{t("Notes and dates worth remembering")}</p>
+          </div>
+          <span className="text-muted">→</span>
+        </Link>
       </nav>
 
       <SendGift />

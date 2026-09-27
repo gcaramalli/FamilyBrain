@@ -171,6 +171,7 @@ export const fr: Record<string, string> = {
   "Note (e.g. for breakfast, organic)": "Remarque (ex. pour le petit-déj, bio)",
   "Note deleted": "Note supprimée",
   "Notes": "Notes",
+  "Notes and dates worth remembering": "Notes et dates à retenir",
   "Notes (allergies, sizes, school…)": "Notes (allergies, tailles, école…)",
   "Notes: what we gave, a memory, gift ideas…": "Notes : ce qu'on a offert, un souvenir, des idées de cadeau…",
   "Nothing else planned.": "Rien d'autre de prévu.",
