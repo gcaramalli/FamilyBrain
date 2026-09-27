@@ -64,6 +64,7 @@ Rules of thumb:
 - `purchases` — auto-filled by a trigger when a grocery item is checked off (skipped if the item was logged <10 min ago); `source` list/manual/receipt, `store`, `price`
 - `restock_suggestions` — view: average interval between purchases → `next_due_on` (needs ≥2 purchases)
 - `recipes` — `ingredients text[]`, `tags text[]`, `favorite`, `kid_friendly`
+- `meals` — what we ate: `eaten_on`, `slot` (breakfast/lunch/dinner/snack), `title`, optional `recipe_id`, `food_groups` (ids in `src/lib/meals.ts`, for balance), `place` (home/out/takeaway), `member_ids` (empty = everyone). Meals tab → "What we ate"; connector `log_meal` / `get_meals`, and `dinner_ideas` returns last week's meals
 - `notes` — the family brain
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)

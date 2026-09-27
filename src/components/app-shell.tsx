@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/calendar", label: t("Calendar"), icon: "📅" },
     ...(kids.length ? [{ href: "/kids", label: kids.length === 1 ? kids[0].name : t("Kids"), icon: kids.length === 1 ? kids[0].emoji : "👶" }] : []),
     { href: "/lists", label: t("Lists"), icon: "🛒" },
-    { href: "/recipes", label: t("Recipes"), icon: "🍲" },
+    { href: "/recipes", label: t("Meals"), icon: "🍽" },
   ];
 
   return (

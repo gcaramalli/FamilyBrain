@@ -119,7 +119,7 @@ export default function TodayPage() {
           </div>
           <span className="text-muted">→</span>
         </Link>
-        <Link href="/recipes" className="flex min-h-14 items-center justify-between gap-3 py-2">
+        <Link href="/recipes?tab=recipes" className="flex min-h-14 items-center justify-between gap-3 py-2">
           <div>
             <div className="font-medium">🍽 {t("Tonight?")}</div>
             <p className="text-sm text-muted">

@@ -120,6 +120,19 @@ export type Recipe = {
   kid_friendly: boolean;
 };
 
+export type Meal = {
+  id: string;
+  eaten_on: string;
+  slot: "breakfast" | "lunch" | "dinner" | "snack";
+  title: string;
+  recipe_id: string | null;
+  food_groups: string[];
+  place: "home" | "out" | "takeaway";
+  member_ids: string[];
+  notes: string | null;
+  created_at: string;
+};
+
 export type Note = {
   id: string;
   title: string;
