@@ -127,6 +127,7 @@ export const fr: Record<string, string> = {
   "I can": "Je peux",
   "I can't": "Je ne peux pas",
   "I just bought… (toothpaste)": "Je viens d'acheter… (dentifrice)",
+  "Confirm": "Valider",
   "I'm going": "J'y vais",
   "Idea": "Idée",
   "Ingredients": "Ingrédients",

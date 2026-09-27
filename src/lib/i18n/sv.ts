@@ -127,6 +127,7 @@ export const sv: Record<string, string> = {
   "I can": "Jag kan",
   "I can't": "Jag kan inte",
   "I just bought… (toothpaste)": "Jag köpte just… (tandkräm)",
+  "Confirm": "Bekräfta",
   "I'm going": "Jag tar det",
   "Idea": "Idé",
   "Ingredients": "Ingredienser",
