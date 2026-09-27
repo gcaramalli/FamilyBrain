@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0019 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0019 are applied (0020 = feedback + AI budgets, apply it before deploying). Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -86,6 +86,12 @@ Rules of thumb:
   stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others. Owner-only RLS like `private_boards`. The one private part the connector reaches
   (`get_work` / `add_work_items` / `update_work_item` / `set_work_entry`), always filtered by the token owner's `profile_id`
   and refused for the legacy family token.
+- `feedback` — ideas / bugs sent from Settings → Give feedback (own rows only); super admins read them through
+  `hembrain_feedback()` and set `status` (new/planned/done/declined) in Hembrain admin → Feedback (`/stats/feedback`).
+- `ai_budgets` (per family `plan` free/paid + `monthly_limit_usd`, no row = free at `FREE_MONTHLY_LIMIT_USD` = $1,
+  `src/lib/ai-budget.ts`; only super admins write it) and `ai_usage` (one row per in-app Claude call with tokens and
+  `cost_usd`, written with the service role by `extract()` in `src/lib/ai.ts`, which refuses a call once the month's
+  spend reaches the cap → HTTP 402). Admin view: `/stats/ai` via `hembrain_ai_usage()`. The connector costs nothing here.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
 - `occasions` — dates celebrated every year (weddings attended, friends' / relatives' birthdays): `date` = original day,
@@ -110,7 +116,9 @@ Rules of thumb:
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
 - Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
-  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
+  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, `/work`, `/brain`).
+  Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
+  give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what
   they set (kid's routine and profile in the kid tab ⚙️, list rename/delete in the list's ⋯).
 - UI text: wrap every string in `t("English text")` from `useFamily()`, then add French and Swedish in

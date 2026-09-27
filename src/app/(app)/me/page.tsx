@@ -5,17 +5,10 @@ import { HubTile } from "@/components/hub-tile";
 import { PageHeader } from "@/components/page-header";
 import { PrivateSpace } from "@/components/private-space";
 
-// Me: my private tiles first, then everything that is set once and looked
-// for later (profile, reminders, AI, family settings).
+// Me: my own space — private tiles (lists, notes, gifts, work) and the
+// family brain. Settings live behind the avatar, top right (/settings).
 export default function MePage() {
-  const { profile, me, superAdmin, t } = useFamily();
-  const links = [
-    { href: "/brain", module: "brain" as const, title: t("Family brain"), sub: t("Notes and dates worth remembering") },
-    { href: "/connections", module: "connections" as const, title: t("Reminders & AI"), sub: t("Notifications, Claude, ChatGPT") },
-    { href: "/profile", module: "profile" as const, title: t("Profile"), sub: t("Name, colour, language, password") },
-    ...(profile.role === "admin" ? [{ href: "/admin", module: "family" as const, title: t("Family settings"), sub: t("People, accounts and invites") }] : []),
-    ...(superAdmin ? [{ href: "/stats", module: "stats" as const, title: t("Hembrain stats"), sub: t("All families, counts only") }] : []),
-  ];
+  const { profile, me, t } = useFamily();
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -32,9 +25,7 @@ export default function MePage() {
       <PrivateSpace />
 
       <nav className="grid grid-cols-2 gap-3">
-        {links.map((l) => (
-          <HubTile key={l.href} href={l.href} module={l.module} title={l.title} sub={l.sub} />
-        ))}
+        <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
       </nav>
 
     </div>

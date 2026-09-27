@@ -95,6 +95,7 @@ export function EventForm({ initial, onDone }: { initial: Draft; onDone: () => v
       body: JSON.stringify({ text: quick, now: `${toLocalInput(now)} (${now.toLocaleDateString("en-GB", { weekday: "long" })})` }),
     }).catch(() => null);
     setThinking(false);
+    if (res?.status === 402) return setError(t("This month's AI budget is used up. It resets on the 1st."));
     if (!res?.ok) return setError(t("Couldn't understand that. Fill in the form below instead."));
     const x = (await res.json()) as {
       title: string; start: string; end: string | null; all_day: boolean; location: string | null;

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aiEnabled, extract } from "@/lib/ai";
+import { aiEnabled, BudgetExceededError, extract } from "@/lib/ai";
 import { getSession } from "@/lib/session";
 
 const Receipt = z.object({
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
 
   try {
     const receipt = await extract(
+      { familyId: session.profile.family_id, profileId: session.profile.id, feature: "receipt" },
       Receipt,
       `You read grocery receipts (often Swedish: ICA, Coop, Willys, Lidl) and list what was bought.
 Skip non-items: totals, VAT/moms, discounts/rabatt, deposits/pant, bag fees, payment lines. Merge a discount into its item's price.
@@ -51,6 +52,7 @@ Otherwise use a short plain name in the language of those usual names (English i
     );
     return Response.json(receipt);
   } catch (e) {
+    if (e instanceof BudgetExceededError) return Response.json({ error: e.message, budget: true }, { status: 402 });
     return Response.json({ error: e instanceof Error ? e.message : "failed" }, { status: 502 });
   }
 }

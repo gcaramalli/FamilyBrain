@@ -1,5 +1,6 @@
 "use client";
 
+import { AiBudget } from "@/components/ai-budget";
 import { ClaudeConnector } from "@/components/claude-connector";
 import { useFamily } from "@/components/family-context";
 import { PageHeader } from "@/components/page-header";
@@ -10,9 +11,10 @@ export default function ConnectionsPage() {
   const { t } = useFamily();
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader module="connections" back="/me" title={t("Reminders & AI")} />
+      <PageHeader module="connections" back="/settings" backLabel={t("Settings")} title={t("Reminders & AI")} />
       <PushSettings />
       <ClaudeConnector />
+      <AiBudget />
       <section className="card text-sm">
         <h2 className="h2 mb-2">{t("Put it on your home screen")}</h2>
         <p>{t("iPhone: open in Safari → Share → “Add to Home Screen”.")}</p>

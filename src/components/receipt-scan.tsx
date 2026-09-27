@@ -39,6 +39,11 @@ export function ReceiptScan({ onLogged }: { onLogged: () => void }) {
       form.append("photo", await shrink(file), "receipt.jpg");
       const res = await fetch("/api/ai/receipt", { method: "POST", body: form });
       const data = await res.json();
+      if (res.status === 402) {
+        setError(t("This month's AI budget is used up. It resets on the 1st."));
+        setState("review");
+        return;
+      }
       if (!res.ok) throw new Error(data.error ?? "failed");
       setResult({ store: data.store, date: data.date, items: data.items.map((i: Omit<Line, "keep">) => ({ ...i, keep: true })) });
       setState("review");
