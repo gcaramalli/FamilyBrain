@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
+import { OccasionsPanel } from "@/components/occasions-panel";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import type { Note } from "@/lib/types";
@@ -16,6 +17,12 @@ export default function BrainPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Draft | null>(null);
+  const [tab, setTab] = useState<"notes" | "dates">("notes");
+
+  // Deep link from reminders and the calendar: /brain?tab=dates
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "dates") setTab("dates");
+  }, []);
 
   const load = useCallback(async () => {
     const { data } = await supabase.from("notes").select("*").order("pinned", { ascending: false }).order("updated_at", { ascending: false });
@@ -60,8 +67,16 @@ export default function BrainPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="h1">{t("Family brain")}</h1>
-        <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>
+        {tab === "notes" && <button className="btn" onClick={() => setEditing({ title: "", body: "", pinned: false, tags: "" })}>+ {t("Note")}</button>}
       </div>
+      <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
+        {(["notes", "dates"] as const).map((x) => (
+          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
+            {x === "notes" ? `📝 ${t("Notes")}` : `💍 ${t("Dates")}`}
+          </button>
+        ))}
+      </div>
+      {tab === "dates" ? <OccasionsPanel /> : <>
       <p className="text-sm text-muted">{t("Everything worth remembering: pickup rules, allergies, sizes, contacts, codes.")}</p>
       <input className="input" placeholder={t("Search…")} value={q} onChange={(e) => setQ(e.target.value)} />
 
@@ -79,6 +94,8 @@ export default function BrainPage() {
         ))}
         {notes.length === 0 && <li className="card text-sm text-muted">{t("Start with “Preschool”: address, opening hours, who is allowed to pick up the kids.")}</li>}
       </ul>
+
+      </>}
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? t("Edit note") : t("New note")}>
         {editing && (

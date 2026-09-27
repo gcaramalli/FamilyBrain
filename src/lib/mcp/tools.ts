@@ -31,6 +31,8 @@ Routing:
   names (see get_list / get_restock_suggestions) rather than raw receipt abbreviations, e.g. "Mellanmjölk 1,5%" → "Milk".
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
+- Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
+  the calendar on purpose (only the family's own dates show there); the app reminds the right people the evening before.
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -198,6 +200,87 @@ export function registerTools(server: McpServer) {
         db.from("notes").select("title, body").eq("family_id", fid).eq("pinned", true),
       ]);
       return text({ members: members.data, lists: lists.data, pinned_notes: notes.data });
+    },
+  );
+
+  server.registerTool(
+    "get_occasions",
+    {
+      title: "Get weddings and birthdays",
+      description:
+        "Dates the family celebrates every year (weddings attended, friends' and relatives' birthdays, our own anniversary), with how many years it will be next time and who it concerns. Use 'days' for what's coming up.",
+      inputSchema: z.object({
+        days: z.number().int().min(1).max(366).optional().describe("Only anniversaries in the next N days; omit for all"),
+        search: z.string().optional().describe("Filter by name, e.g. 'Romain'"),
+      }),
+    },
+    async ({ days, search }) => {
+      const db = createAdminClient();
+      const [{ data: rows, error }, { data: members }] = await Promise.all([
+        db.from("occasions").select("id, kind, title, date, ours, member_ids, ended, notes").eq("family_id", familyId()).order("date"),
+        db.from("members").select("id, name").eq("family_id", familyId()),
+      ]);
+      if (error) throw new Error(error.message);
+      const today = new Date(`${utcToStockholm(new Date().toISOString()).slice(0, 10)}T12:00:00Z`);
+      const name = (id: string) => (members ?? []).find((m) => m.id === id)?.name ?? null;
+      const out = (rows ?? [])
+        .filter((o) => !search || o.title.toLowerCase().includes(search.toLowerCase()))
+        .map((o) => {
+          const [y, m, d] = o.date.split("-").map(Number);
+          let next = new Date(Date.UTC(today.getUTCFullYear(), m - 1, d, 12));
+          if (next < today) next = new Date(Date.UTC(today.getUTCFullYear() + 1, m - 1, d, 12));
+          return {
+            id: o.id,
+            kind: o.kind,
+            who: o.title,
+            original_date: o.date,
+            next_date: next.toISOString().slice(0, 10),
+            in_days: Math.round((next.getTime() - today.getTime()) / 86400000),
+            years_next_time: next.getUTCFullYear() - y,
+            ours: o.ours,
+            concerns: o.member_ids.map(name).filter(Boolean),
+            no_longer_celebrated: o.ended,
+            notes: o.notes,
+          };
+        })
+        .filter((o) => days === undefined || (!o.no_longer_celebrated && o.in_days <= days))
+        .sort((a, b) => a.in_days - b.in_days);
+      return text(out);
+    },
+  );
+
+  server.registerTool(
+    "add_occasion",
+    {
+      title: "Add a wedding or birthday",
+      description: "Remember a date the family celebrates every year (a wedding we attended, a friend's child's birthday…). Not for one-off events: use add_event for those.",
+      inputSchema: z.object({
+        kind: z.enum(["wedding", "birthday", "other"]),
+        who: z.string().min(1).describe("e.g. 'Damien & Caroline' or 'Léo (son of Paul)'"),
+        date: z.string().describe("The original date YYYY-MM-DD (wedding day, date of birth)"),
+        concerns: z.array(z.string()).optional().describe("First names of the family members it concerns / who were there; default everyone"),
+        ours: z.boolean().optional().describe("One of the family's own dates (shown in the calendar)"),
+        notes: z.string().optional(),
+      }),
+    },
+    async ({ kind, who, date, concerns, ours, notes }) => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("date must be YYYY-MM-DD");
+      const ids = concerns?.length ? (await Promise.all(concerns.map((n) => memberIdByName(n)))).filter((x): x is string => !!x) : [];
+      const { data: adults } = await createAdminClient().from("members").select("id").eq("family_id", familyId()).not("profile_id", "is", null);
+      const { error } = await createAdminClient()
+        .from("occasions")
+        .insert({
+          family_id: familyId(),
+          kind,
+          title: who.trim(),
+          date,
+          ours: ours ?? false,
+          member_ids: ids.length ? ids : (adults ?? []).map((a) => a.id),
+          notes: notes ?? null,
+          created_by: createdBy(),
+        });
+      if (error) throw new Error(error.message);
+      return text({ added: who, kind, date });
     },
   );
 

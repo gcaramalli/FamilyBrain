@@ -3,10 +3,12 @@
 # Hembrain — notes for Claude
 
 Family app for **Guillaume** (dad, admin), **Jenny** (mom) and **Charlie** (baby/toddler, no account).
+Where it is going: `VISION.md` (the family's long-term, agent-readable memory) — read it before proposing features;
+next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0008 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0009 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -64,6 +66,11 @@ Rules of thumb:
 - `notes` — the family brain
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
+- `occasions` — dates celebrated every year (weddings attended, friends' / relatives' birthdays): `date` = original day,
+  `member_ids` = who it concerns (gets the reminder), `ended` = kept but no longer celebrated (e.g. divorced),
+  `ours` = one of the family's own dates. Deliberately **not** in `events`: only `ours` and members' `birthdate`
+  are shown in the calendar (`familyDates` in `src/lib/occasions.ts`); the rest live in Brain → Dates and in the
+  evening reminder. Connector: `get_occasions` / `add_occasion`.
 
 ## Dev
 

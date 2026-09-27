@@ -9,7 +9,14 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Hembrain",
-  description: "The Caramalli family's shared calendar, lists, recipes and memory.",
+  description: "Your family's shared calendar, lists, recipes and memory.",
+  // Link previews (iMessage, WhatsApp…): the same for every family.
+  openGraph: {
+    title: "Hembrain",
+    description: "Your family's shared calendar, lists, recipes and memory.",
+    siteName: "Hembrain",
+    type: "website",
+  },
   appleWebApp: { capable: true, title: "Hembrain", statusBarStyle: "default" },
 };
 
