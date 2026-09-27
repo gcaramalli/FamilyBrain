@@ -58,6 +58,7 @@ Rules of thumb:
 - `families`, `profiles` (one per account, `role` admin/member), `members` (everyone, incl. Charlie), `invites` (secret `code`, `expires_at`, single use)
 - `events` — calendar; `responsible_member_id` = who does it, `for_member_id` = who it's about; `recurrence` (daily/weekdays/weekly/biweekly/monthly) + `recurrence_until`, expanded in `src/lib/recurrence.ts` / `src/lib/events.ts`; `skip_dates` = occurrences removed or changed on their own (a changed one becomes a separate one-off event); `care` = `dropoff`/`pickup` of a child (Kids tab, `src/lib/care.ts`; stored title stays English, e.g. "Pick-up Charlie", and is translated on display). All-day events include their end date.
 - `members` also hold kids' usual `dropoff_time`, `pickup_time`, `care_place`, `care_days` (ISO weekdays)
+- `care_availability` — per kid/day/`kind`/parent: `available` true ("I can") or false ("I can't"), no row = hasn't said. The one who goes confirms ("I'm going") = the care event's `responsible_member_id` (`src/components/care-slot.tsx`)
 - `push_subscriptions` — one row per device with reminders on (own rows only)
 - `lists` (`kind` grocery/todo) and `list_items` (`category` = aisle id from `src/lib/categories.ts`)
 - `purchases` — auto-filled by a trigger when a grocery item is checked off (skipped if the item was logged <10 min ago); `source` list/manual/receipt, `store`, `price`

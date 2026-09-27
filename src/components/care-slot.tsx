@@ -2,18 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFamily } from "./family-context";
-import { assignSlot, findSlot, usualTime, type CareKind } from "@/lib/care";
+import { assignSlot, findSlot, setAvailability, usualTime, type CareKind } from "@/lib/care";
 import { fetchOccurrences } from "@/lib/events";
 import { formatTime } from "@/lib/dates";
 import { notifyAssignment } from "@/lib/push-client";
-import type { EventOccurrence, Member } from "@/lib/types";
+import type { CareAvailability, EventOccurrence, Member } from "@/lib/types";
 
-// One drop-off or pick-up. Tapping cycles me → the other parent → nobody.
+// What I said about one slot: "going" (confirmed, I'm the event's responsible),
+// "yes" (I can), "no" (I can't) or null (not said yet).
+type Mine = "going" | "yes" | "no" | null;
+// Tapping goes: not said → I can → I can't → not said. Confirming is its own button.
+const NEXT: Record<string, Mine> = { null: "yes", yes: "no", no: null, going: "no" };
+
+// One drop-off or pick-up. Each parent says whether they can; the one who
+// goes confirms it ("I'm going"), which puts it in the calendar under their name.
 export function CareSlot({
   kid,
   day,
   kind,
   event,
+  availability,
   past,
   onChanged,
   onEdit,
@@ -22,78 +30,138 @@ export function CareSlot({
   day: string;
   kind: CareKind;
   event: EventOccurrence | null;
+  availability: CareAvailability[];
   past?: boolean;
   onChanged: () => void;
   onEdit?: (ev: EventOccurrence) => void;
 }) {
   const { supabase, adults, me, memberById, t } = useFamily();
-  const [shown, setShown] = useState<string | null | undefined>(undefined); // optimistic value
+  const [shown, setShown] = useState<Mine | undefined>(undefined); // optimistic value
   const [error, setError] = useState(false);
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const before = useRef<Mine | undefined>(undefined); // my answer before this burst of taps
   const queue = useRef(Promise.resolve());
 
-  const current = shown !== undefined ? shown : event?.responsible_member_id ?? null;
-  const person = memberById(current);
-  const order = [...(me ? [me.id] : []), ...adults.filter((a) => a.id !== me?.id).map((a) => a.id), null];
+  const goerId = event?.responsible_member_id ?? null;
+  const said = (id: string) => availability.find((a) => a.member_id === id)?.available;
+  const saved: Mine = me && goerId === me.id ? "going" : me && said(me.id) !== undefined ? (said(me.id) ? "yes" : "no") : null;
+  const mine = shown !== undefined ? shown : saved;
+  // Once I've just confirmed or backed out, show that before the server catches up.
+  const goer = memberById(mine === "going" ? me?.id : goerId === me?.id ? null : goerId);
+  const answer = (a: Member): Mine => (a.id === me?.id ? mine : a.id === goerId ? "going" : said(a.id) === undefined ? null : said(a.id) ? "yes" : "no");
+  const nobodyCan = !goer && adults.length > 0 && adults.every((a) => answer(a) === "no");
+  const someoneCan = !goer && adults.some((a) => answer(a) === "yes");
 
   // The server state caught up: drop the optimistic value.
-  useEffect(() => setShown(undefined), [event?.key, event?.responsible_member_id]);
+  const answers = availability.map((a) => `${a.member_id}:${a.available}`).join();
+  useEffect(() => setShown(undefined), [event?.key, goerId, answers]);
   useEffect(() => () => {
     if (notifyTimer.current) clearTimeout(notifyTimer.current);
   }, []);
 
-  function tap() {
-    const next = order[(order.indexOf(current) + 1) % order.length];
+  function change(next: Mine) {
+    if (!me) return;
+    if (before.current === undefined) before.current = mine;
     setShown(next);
     setError(false);
     // Taps are applied one after the other, each against the latest state.
     queue.current = queue.current.then(async () => {
-      // Re-read the slot: an earlier tap may have just created or changed it.
-      const start = new Date(`${day}T00:00:00`);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      const latest = findSlot(await fetchOccurrences(supabase, start, end), kid, day, kind);
-      const err = await assignSlot(supabase, kid, day, kind, next, latest);
+      let err = await setAvailability(supabase, kid, day, kind, me.id, next === null ? null : next !== "no");
+      // Confirming puts me on the calendar event; "I can't" takes me off it.
+      if (!err && (next === "going" || next === "no")) {
+        // Re-read the slot: an earlier tap may have just created or changed it.
+        const start = new Date(`${day}T00:00:00`);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        const latest = findSlot(await fetchOccurrences(supabase, start, end), kid, day, kind);
+        if (next === "going" || latest?.responsible_member_id === me.id) {
+          err = await assignSlot(supabase, kid, day, kind, next === "going" ? me.id : null, latest);
+        }
+      }
       if (err) setError(true);
       onChanged();
     });
-    // Only tell the other parent once the tapping has settled.
+    // Only tell the other parent once the tapping has settled, and only about
+    // what matters to them: I'm going, or I can't and nobody is going yet.
     if (notifyTimer.current) clearTimeout(notifyTimer.current);
     notifyTimer.current = setTimeout(() => {
-      const who = memberById(next);
-      if (who) notifyAssignment(who, me, { title: `${kind === "dropoff" ? "Drop-off" : "Pick-up"} ${kid.name}`, starts_at: new Date(`${day}T${usualTime(kid, kind)}:00`).toISOString(), all_day: false });
+      const from = before.current;
+      before.current = undefined;
+      if (next === from) return;
+      const news = next === "going" ? "going" : next === "no" && (!goerId || goerId === me.id) ? "cant" : null;
+      if (!news) return;
+      const ev = { title: `${kind === "dropoff" ? "Drop-off" : "Pick-up"} ${kid.name}`, starts_at: new Date(`${day}T${usualTime(kid, kind)}:00`).toISOString(), all_day: false };
+      for (const a of adults) if (a.id !== me.id) notifyAssignment(a, me, ev, news);
     }, 4000);
   }
 
   const time = event ? formatTime(event.occurrence_start) : usualTime(kid, kind);
+  const status = goer ? t("{name} is going", { name: goer.name }) : nobodyCan ? t("Nobody can") : someoneCan ? t("Not confirmed") : t("Who?");
+  const mineLabel = { going: t("I'm going"), yes: t("I can"), no: t("I can't") };
   return (
-    <div className={`relative ${past ? "opacity-50" : ""}`}>
+    <div className={`relative flex flex-col gap-1 ${past ? "opacity-50" : ""}`}>
       <button
-        onClick={tap}
-        aria-label={`${kind === "dropoff" ? t("Drop-off") : t("Pick-up")} ${time}: ${person ? person.name : t("nobody yet")}. ${t("Tap to change")}`}
+        onClick={() => change(NEXT[String(mine)])}
+        disabled={!me}
+        aria-label={`${kind === "dropoff" ? t("Drop-off") : t("Pick-up")} ${time}: ${status}. ${mine ? mineLabel[mine] + ". " : ""}${t("Tap: I can, I can't")}`}
         className={`flex min-h-14 w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors ${
-          person ? "border-transparent" : "border-dashed border-border"
+          goer ? "border-transparent" : nobodyCan ? "border-danger" : "border-dashed border-border"
         } ${error ? "border-danger" : ""}`}
-        style={person ? { background: `color-mix(in srgb, ${person.color} 14%, transparent)` } : undefined}
+        style={goer ? { background: `color-mix(in srgb, ${goer.color} 14%, transparent)` } : undefined}
       >
-        <span
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${person ? "text-white" : "border border-dashed border-muted text-muted"}`}
-          style={person ? { background: person.color } : undefined}
-        >
-          {person ? person.name.slice(0, 1) : "?"}
-        </span>
+        {goer ? (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white" style={{ background: goer.color }}>
+            {goer.name.slice(0, 1)}
+          </span>
+        ) : (
+          <span className="flex shrink-0 -space-x-1.5">
+            {adults.map((a) => (
+              <Answer key={a.id} person={a} answer={answer(a)} />
+            ))}
+          </span>
+        )}
         <span className="min-w-0">
           <span className="block text-xs tabular-nums text-muted">
             {kind === "dropoff" ? "☀️" : "🌙"} {time}
           </span>
-          <span className={`block truncate text-sm font-medium ${person ? "" : "text-muted"}`}>{person ? person.name : t("Who?")}</span>
+          <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"}`}>
+            {goer ? `${goer.name} ✓` : status}
+          </span>
         </span>
       </button>
+      {!goer && mine === "yes" && (
+        <button onClick={() => change("going")} className="rounded-lg bg-accent px-2 py-1.5 text-xs font-semibold text-on-accent">
+          ✓ {t("I'm going")}
+        </button>
+      )}
       {event && onEdit && (
         <button onClick={() => onEdit(event)} aria-label={t("Edit time or place")} className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center text-muted">
           ⋯
         </button>
       )}
     </div>
+  );
+}
+
+// A parent's initial with what they said: filled = can, crossed out = can't, dashed = not said.
+function Answer({ person, answer }: { person: Member; answer: Mine }) {
+  const { t } = useFamily();
+  const label = answer === "no" ? t("can't") : answer ? t("can") : t("hasn't said");
+  return (
+    <span
+      title={`${person.name}: ${label}`}
+      className={`relative flex h-7 w-7 items-center justify-center rounded-full border-2 border-surface text-xs font-semibold ${
+        answer === "yes" ? "text-white" : answer === "no" ? "text-muted line-through" : "text-muted"
+      }`}
+      style={
+        answer === "yes"
+          ? { background: person.color }
+          : answer === "no"
+            ? { background: "var(--surface)", boxShadow: `inset 0 0 0 1.5px ${person.color}` }
+            : { background: "var(--surface)", outline: "1px dashed var(--muted)", outlineOffset: "-3px" }
+      }
+    >
+      {answer === "no" ? "✕" : person.name.slice(0, 1)}
+    </span>
   );
 }

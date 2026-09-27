@@ -6,17 +6,18 @@ import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventRow } from "@/components/event-row";
 import { SendGift } from "@/components/send-gift";
-import { CARE_KINDS, careKind, findSlot, isCareDay } from "@/lib/care";
+import { CARE_KINDS, careKind, fetchAvailability, findSlot, isCareDay, slotAvailability } from "@/lib/care";
 import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
-import type { EventOccurrence, Member, Occasion, Recipe, RestockSuggestion } from "@/lib/types";
+import type { CareAvailability, EventOccurrence, Member, Occasion, Recipe, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [events, setEvents] = useState<EventOccurrence[]>([]);
+  const [answers, setAnswers] = useState<CareAvailability[]>([]);
   const [tonight, setTonight] = useState<Recipe | null>(null);
   const [openCount, setOpenCount] = useState<number | null>(null);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
@@ -24,7 +25,12 @@ export default function TodayPage() {
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
     // A week ahead: the kids' card shows the next preschool day, even after a weekend.
-    setEvents(await fetchCalendar(supabase, members, today, addDays(today, 8), t));
+    const [evs, said] = await Promise.all([
+      fetchCalendar(supabase, members, today, addDays(today, 8), t),
+      fetchAvailability(supabase, dayKey(today), dayKey(addDays(today, 8))),
+    ]);
+    setEvents(evs);
+    setAnswers(said);
   }, [supabase, members, t]);
 
   useEffect(() => {
@@ -33,6 +39,7 @@ export default function TodayPage() {
     const channel = supabase
       .channel("today-events")
       .on("postgres_changes", { event: "*", schema: "public", table: "events" }, loadEvents)
+      .on("postgres_changes", { event: "*", schema: "public", table: "care_availability" }, loadEvents)
       .subscribe();
     // "Tonight?": favourites first, then any recipe.
     supabase
@@ -77,7 +84,7 @@ export default function TodayPage() {
       </div>
 
       {kids.map((kid) => (
-        <KidCard key={kid.id} kid={kid} events={events} onChanged={loadEvents} />
+        <KidCard key={kid.id} kid={kid} events={events} answers={answers} onChanged={loadEvents} />
       ))}
 
       <section>
@@ -130,7 +137,7 @@ export default function TodayPage() {
 
 // "Charlie · today: drop-off Guillaume 08:00, pick-up ? 16:00", then the
 // next preschool day (tomorrow, or Monday after a weekend).
-function KidCard({ kid, events, onChanged }: { kid: Member; events: EventOccurrence[]; onChanged: () => void }) {
+function KidCard({ kid, events, answers, onChanged }: { kid: Member; events: EventOccurrence[]; answers: CareAvailability[]; onChanged: () => void }) {
   const { t } = useFamily();
   const hasCare = (d: Date) => isCareDay(kid, d) || CARE_KINDS.some((kind) => findSlot(events, kid, dayKey(d), kind));
   const next = Array.from({ length: 7 }, (_, i) => addDays(new Date(), i + 1)).find(hasCare);
@@ -163,7 +170,7 @@ function KidCard({ kid, events, onChanged }: { kid: Member; events: EventOccurre
             </span>
             <div className="grid grid-cols-2 gap-2">
               {CARE_KINDS.map((kind, i) => (
-                <CareSlot key={kind} kid={kid} day={k} kind={kind} event={planned[i]} onChanged={onChanged} />
+                <CareSlot key={kind} kid={kid} day={k} kind={kind} event={planned[i]} availability={slotAvailability(answers, kid, k, kind)} onChanged={onChanged} />
               ))}
             </div>
           </div>

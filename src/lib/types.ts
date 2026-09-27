@@ -28,6 +28,15 @@ export type Member = {
   care_days: number[];
 };
 
+// A parent saying they can (or can't) do one drop-off or pick-up.
+export type CareAvailability = {
+  kid_id: string;
+  day: string;
+  kind: "dropoff" | "pickup";
+  member_id: string;
+  available: boolean;
+};
+
 export type Invite = { email: string; family_id: string; role: Role; code: string; expires_at: string; member_id: string | null; created_at: string };
 
 export type CalendarEvent = {
