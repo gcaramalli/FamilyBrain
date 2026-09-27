@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
-import { MealsPanel } from "@/components/meals-panel";
+import { KitchenHeader } from "@/components/page-header";
 import { guessCategory } from "@/lib/categories";
 import { slotNow } from "@/lib/meals";
 import { dayKey } from "@/lib/dates";
@@ -25,29 +25,9 @@ const emptyRecipe: Draft = {
   kid_friendly: false,
 };
 
-// Meals: what we ate (journal) and the family cookbook.
-export default function MealsPage() {
-  const { t } = useFamily();
-  const [tab, setTab] = useState<"eaten" | "recipes">("eaten");
-
-  // Deep link from the "Tonight?" tile: /recipes?tab=recipes
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("tab") === "recipes") setTab("recipes");
-  }, []);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <h1 className="h1">{t("Meals")}</h1>
-      <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-0.5 text-sm">
-        {(["eaten", "recipes"] as const).map((x) => (
-          <button key={x} onClick={() => setTab(x)} className={`min-h-9 rounded-lg ${tab === x ? "bg-accent font-medium text-on-accent" : ""}`}>
-            {x === "eaten" ? `🍽 ${t("What we ate")}` : `📖 ${t("Recipes")}`}
-          </button>
-        ))}
-      </div>
-      {tab === "eaten" ? <MealsPanel /> : <RecipesPanel />}
-    </div>
-  );
+// Kitchen → Recipes: the family cookbook. What we ate lives in /meals.
+export default function RecipesPage() {
+  return <RecipesPanel />;
 }
 
 function RecipesPanel() {
@@ -80,14 +60,12 @@ function RecipesPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
-        <div className="flex gap-2">
-          <button className="btn-ghost" onClick={surprise} disabled={!recipes.length}>🎲 {t("Idea")}</button>
-          <button className="btn" onClick={() => setEditing({ ...emptyRecipe })}>+ {t("Recipe")}</button>
-        </div>
-      </div>
+      <KitchenHeader action={<button className="btn" onClick={() => setEditing({ ...emptyRecipe })}>+ {t("Recipe")}</button>} />
 
-      <input className="input" placeholder={t("Search by name, ingredient, tag…")} value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="flex gap-2">
+        <input className="input" placeholder={t("Search by name, ingredient, tag…")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="btn-ghost shrink-0" onClick={surprise} disabled={!recipes.length} aria-label={t("Idea")}>🎲</button>
+      </div>
 
       {tags.length > 0 && (
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4">

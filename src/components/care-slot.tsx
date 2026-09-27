@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useFamily } from "./family-context";
 import { assignSlot, findSlot, setAvailability, usualTime, type CareKind } from "@/lib/care";
 import { fetchOccurrences } from "@/lib/events";
-import { formatTime } from "@/lib/dates";
+import { fmtDate, formatTime } from "@/lib/dates";
+import { Sheet } from "./sheet";
 import { notifyAssignment } from "@/lib/push-client";
 import type { CareAvailability, EventOccurrence, Member } from "@/lib/types";
 
 // What I said about one slot: "going" (confirmed, I'm the event's responsible),
 // "yes" (I can), "no" (I can't) or null (not said yet).
 type Mine = "going" | "yes" | "no" | null;
-// Tapping goes: not said → I can → I can't → not said. Confirming is its own button.
-const NEXT: Record<string, Mine> = { null: "yes", yes: "no", no: null, going: "no" };
 
 // One drop-off or pick-up. Each parent says whether they can; the one who
 // goes confirms it ("I'm going"), which puts it in the calendar under their name.
@@ -38,6 +37,7 @@ export function CareSlot({
   const { supabase, adults, me, memberById, t } = useFamily();
   const [shown, setShown] = useState<Mine | undefined>(undefined); // optimistic value
   const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
   const notifyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const before = useRef<Mine | undefined>(undefined); // my answer before this burst of taps
   const queue = useRef(Promise.resolve());
@@ -67,8 +67,8 @@ export function CareSlot({
     // Taps are applied one after the other, each against the latest state.
     queue.current = queue.current.then(async () => {
       let err = await setAvailability(supabase, kid, day, kind, me.id, next === null ? null : next !== "no");
-      // Confirming puts me on the calendar event; "I can't" takes me off it.
-      if (!err && (next === "going" || next === "no")) {
+      // Confirming puts me on the calendar event; any other answer takes me off it.
+      if (!err) {
         // Re-read the slot: an earlier tap may have just created or changed it.
         const start = new Date(`${day}T00:00:00`);
         const end = new Date(start);
@@ -98,15 +98,18 @@ export function CareSlot({
   const time = event ? formatTime(event.occurrence_start) : usualTime(kid, kind);
   const status = goer ? t("{name} is going", { name: goer.name }) : nobodyCan ? t("Nobody can") : someoneCan ? t("Not confirmed") : t("Who?");
   const mineLabel = { going: t("I'm going"), yes: t("I can"), no: t("I can't") };
-  // "I can" → offer to confirm, inside the slot so the row keeps its height.
-  const confirming = !goer && mine === "yes";
+  const kindLabel = kind === "dropoff" ? t("Drop-off") : t("Pick-up");
+  const pick = (next: Mine) => {
+    setOpen(false);
+    if (next !== mine) change(next);
+  };
   return (
-    <div className={`relative flex flex-col gap-1 ${past ? "opacity-50" : ""}`}>
+    <div className="flex flex-col gap-1">
       <button
-        onClick={() => change(NEXT[String(mine)])}
+        onClick={() => setOpen(true)}
         disabled={!me}
-        aria-label={`${kind === "dropoff" ? t("Drop-off") : t("Pick-up")} ${time}: ${status}. ${mine ? mineLabel[mine] + ". " : ""}${t("Tap: I can, I can't")}`}
-        className={`flex min-h-14 w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors ${
+        aria-label={`${kindLabel} ${time}: ${status}. ${mine ? mineLabel[mine] + "." : ""}`}
+        className={`${past ? "opacity-50" : ""} flex min-h-14 w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors ${
           goer ? "border-transparent" : nobodyCan ? "border-danger" : "border-dashed border-border"
         } ${error ? "border-danger" : ""}`}
         style={goer ? { background: `color-mix(in srgb, ${goer.color} 14%, transparent)` } : undefined}
@@ -126,25 +129,54 @@ export function CareSlot({
           <span className="block text-xs tabular-nums text-muted">
             {kind === "dropoff" ? "☀️" : "🌙"} {time}
           </span>
-          <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"} ${confirming ? "invisible" : ""}`}>
+          <span className={`block truncate text-sm font-medium ${goer ? "" : nobodyCan ? "text-danger" : "text-muted"}`}>
             {goer ? `${goer.name} ✓` : status}
           </span>
         </span>
       </button>
-      {confirming && (
-        <button
-          onClick={() => change("going")}
-          aria-label={t("I'm going")}
-          className="absolute bottom-1.5 right-1.5 whitespace-nowrap rounded-md bg-accent px-1.5 py-1 text-[11px] font-semibold leading-none text-on-accent"
-        >
-          ✓ {t("Confirm")}
-        </button>
-      )}
-      {event && onEdit && (
-        <button onClick={() => onEdit(event)} aria-label={t("Edit time or place")} className="absolute right-0 top-0 flex h-9 w-9 items-center justify-center text-muted">
-          ⋯
-        </button>
-      )}
+      {/* One tap opens the choices, spelled out: no hidden tap cycle to learn. */}
+      <Sheet open={open} onClose={() => setOpen(false)} title={`${kindLabel} · ${fmtDate(`${day}T12:00:00`, { weekday: "long", day: "numeric", month: "short" })} · ${time}`}>
+        <div className="flex flex-col gap-3">
+          <ul className="flex flex-col gap-1 text-sm">
+            {adults.filter((a) => a.id !== me?.id).map((a) => {
+              const x = answer(a);
+              return (
+                <li key={a.id} className="flex items-center gap-2">
+                  <Answer person={a} answer={x === "going" ? "yes" : x} />
+                  <span>{a.name}: {x === "going" ? t("is going") : x === "yes" ? t("can") : x === "no" ? t("can't") : t("hasn't said")}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <button className="btn" onClick={() => pick("going")} disabled={mine === "going"}>
+            ✓ {t("I'm going")}
+          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button className={`btn-ghost ${mine === "yes" ? "border-foreground font-semibold" : ""}`} onClick={() => pick("yes")}>
+              {t("I can")}
+            </button>
+            <button className={`btn-ghost ${mine === "no" ? "border-danger font-semibold text-danger" : ""}`} onClick={() => pick("no")}>
+              {t("I can't")}
+            </button>
+          </div>
+          {mine && (
+            <button className="min-h-9 text-sm text-muted underline" onClick={() => pick(null)}>
+              {t("Clear my answer")}
+            </button>
+          )}
+          {event && onEdit && (
+            <button
+              className="min-h-9 text-sm text-muted underline"
+              onClick={() => {
+                setOpen(false);
+                onEdit(event);
+              }}
+            >
+              {t("Edit time or place")}
+            </button>
+          )}
+        </div>
+      </Sheet>
     </div>
   );
 }

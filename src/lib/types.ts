@@ -157,7 +157,7 @@ export type PrivateBoard = {
   id: string;
   title: string;
   emoji: string;
-  kind: "list" | "note";
+  kind: "list" | "note" | "gifts";
   body: string;
   position: number;
   updated_at: string;
@@ -168,5 +168,7 @@ export type PrivateItem = {
   board_id: string;
   title: string;
   done: boolean;
+  person: string | null; // gifts: who it's for
+  occasion: string | null; // gifts: Christmas, birthday…
   created_at: string;
 };

@@ -935,7 +935,7 @@ export function registerTools(server: McpServer) {
     },
     async ({ to, emoji, message }) => {
       const from = createdBy();
-      if (!from) throw new Error("Gifts need a personal connector link (Profile → Connect Claude) so we know who sends it.");
+      if (!from) throw new Error("Gifts need a personal connector link (Me → Reminders & AI) so we know who sends it.");
       const db = createAdminClient();
       const { data: people } = await db.from("profiles").select("id, display_name").eq("family_id", familyId());
       const n = to.trim().toLowerCase();

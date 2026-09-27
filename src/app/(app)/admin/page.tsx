@@ -7,7 +7,10 @@ import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { fmtDate } from "@/lib/dates";
-import type { Invite, List, Member, Profile } from "@/lib/types";
+import Link from "next/link";
+import { MemberEditor } from "@/components/member-editor";
+import { PageHeader } from "@/components/page-header";
+import type { Invite, Profile } from "@/lib/types";
 
 export default function AdminPage() {
   const { supabase, profile, family, members, t } = useFamily();
@@ -15,24 +18,20 @@ export default function AdminPage() {
   const toast = useToast();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [renaming, setRenaming] = useState<List | null>(null);
   const [familyName, setFamilyName] = useState(family.name);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [lists, setLists] = useState<List[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [inviteMember, setInviteMember] = useState<string>("");
 
   const load = useCallback(async () => {
-    const [p, i, l] = await Promise.all([
+    const [p, i] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at"),
       supabase.from("invites").select("*").order("created_at"),
-      supabase.from("lists").select("*").order("position"),
     ]);
     setProfiles((p.data ?? []) as Profile[]);
     setInvites((i.data ?? []) as Invite[]);
-    setLists((l.data ?? []) as List[]);
   }, [supabase]);
 
   useEffect(() => {
@@ -101,7 +100,7 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">{t("Admin")}</h1>
+      <PageHeader back="/me" title={t("Family settings")} />
 
       <form onSubmit={saveFamily} className="card flex flex-col gap-2">
         <h2 className="h2">{t("Family")}</h2>
@@ -117,7 +116,17 @@ export default function AdminPage() {
           <button className="btn-ghost" onClick={() => setAdding(true)}>+ {t("Person")}</button>
         </div>
         <p className="text-xs text-muted">{t("People who appear on the calendar. Kids don't need an account.")}</p>
-        {members.map((m) => <MemberEditor key={m.id} member={m} onChange={refresh} />)}
+        {members.map((m) =>
+          m.profile_id ? (
+            <MemberEditor key={m.id} member={m} onChange={refresh} />
+          ) : (
+            // Kids are set up where they are used: their tab.
+            <Link key={m.id} href="/kids" className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3 text-sm">
+              <span>{m.emoji} {m.name}</span>
+              <span className="text-muted">{t("In the {name} tab", { name: m.name })} →</span>
+            </Link>
+          ),
+        )}
       </section>
 
       <section className="card flex flex-col gap-3">
@@ -179,42 +188,10 @@ export default function AdminPage() {
         </p>
       </section>
 
-      <section className="card flex flex-col gap-2">
-        <h2 className="h2">{t("Lists")}</h2>
-        {lists.map((l) => (
-          <div key={l.id} className="flex items-center justify-between text-sm">
-            <span>{l.kind === "grocery" ? "🛒" : "✅"} {l.name}</span>
-            <div className="flex gap-3">
-              <button className="text-accent" onClick={() => setRenaming(l)}>{t("Rename")}</button>
-              <ConfirmButton armed={t("Delete with all items?")} onConfirm={async () => { await supabase.from("lists").delete().eq("id", l.id); load(); }}>{t("Delete")}</ConfirmButton>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <p className="text-xs text-muted">{t("Purchase history moved to Lists → 🧾 Purchases, for everyone.")}</p>
-
       <Sheet open={adding} onClose={() => setAdding(false)} title={t("Add a person")}>
         {adding && <AddPerson onAdd={addMember} />}
       </Sheet>
 
-      <Sheet open={!!renaming} onClose={() => setRenaming(null)} title={t("Rename list")}>
-        {renaming && (
-          <form
-            className="flex flex-col gap-3"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const name = new FormData(e.currentTarget).get("name")?.toString().trim();
-              if (name) await supabase.from("lists").update({ name }).eq("id", renaming.id);
-              setRenaming(null);
-              load();
-            }}
-          >
-            <input className="input" name="name" defaultValue={renaming.name} required autoFocus />
-            <button className="btn">{t("Save")}</button>
-          </form>
-        )}
-      </Sheet>
     </div>
   );
 }
@@ -240,47 +217,5 @@ function AddPerson({ onAdd }: { onAdd: (name: string, emoji: string) => void }) 
       <p className="text-xs text-muted">{t("Kids don't need an account. To give an adult one, invite them below after adding.")}</p>
       <button className="btn">{t("Add")}</button>
     </form>
-  );
-}
-
-function MemberEditor({ member, onChange }: { member: Member; onChange: () => void }) {
-  const { supabase, t } = useFamily();
-  const [m, setM] = useState(member);
-  const [dirty, setDirty] = useState(false);
-  const set = <K extends keyof Member>(k: K, v: Member[K]) => {
-    setM((x) => ({ ...x, [k]: v }));
-    setDirty(true);
-  };
-
-  async function save() {
-    await supabase.from("members").update({ name: m.name, emoji: m.emoji, color: m.color, birthdate: m.birthdate, notes: m.notes }).eq("id", m.id);
-    setDirty(false);
-    onChange();
-  }
-
-  async function remove() {
-    await supabase.from("members").delete().eq("id", m.id);
-    onChange();
-  }
-
-  return (
-    <div className="rounded-xl border border-border p-3">
-      <div className="flex gap-2">
-        <input className="input w-14 text-center" value={m.emoji} onChange={(e) => set("emoji", e.target.value)} />
-        <input className="input" value={m.name} onChange={(e) => set("name", e.target.value)} />
-        <input type="color" className="h-11 w-11 shrink-0 rounded-xl border border-border" value={m.color} onChange={(e) => set("color", e.target.value)} />
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <input className="input" type="date" value={m.birthdate ?? ""} onChange={(e) => set("birthdate", e.target.value || null)} />
-        <span className="self-center text-xs text-muted">{m.profile_id ? t("Has an account") : t("No account")}</span>
-      </div>
-      <textarea className="input mt-2" placeholder={t("Notes (allergies, sizes, school…)")} value={m.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} />
-      <div className="mt-2 flex gap-2">
-        <button className="btn flex-1" onClick={save} disabled={!dirty}>{t("Save")}</button>
-        {!m.profile_id && (
-          <ConfirmButton className="btn-ghost" armed={t("Remove {name}?", { name: m.name })} onConfirm={remove}>{t("Remove")}</ConfirmButton>
-        )}
-      </div>
-    </div>
   );
 }

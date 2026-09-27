@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ClaudeConnector } from "@/components/claude-connector";
+import { PageHeader } from "@/components/page-header";
 import { useFamily } from "@/components/family-context";
-import { PushSettings } from "@/components/push-settings";
 import { LOCALES, type Locale } from "@/lib/i18n";
 
 const COLORS = ["#4f46e5", "#db2777", "#059669", "#d97706", "#0891b2", "#7c3aed", "#dc2626", "#475569"];
@@ -49,7 +48,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="h1">{t("Profile")}</h1>
+      <PageHeader back="/me" title={t("Profile")} />
 
       <form onSubmit={save} className="card flex flex-col gap-3">
         <div className="flex gap-2">
@@ -96,10 +95,8 @@ export default function ProfilePage() {
         <button className="btn">{saved ? `✓ ${t("Saved")}` : t("Save")}</button>
       </form>
 
-      <PushSettings />
-
       <form onSubmit={changePassword} className="card flex flex-col gap-3">
-        <h2 className="h2">🔑 {t("Password")}</h2>
+        <h2 className="h2">{t("Password")}</h2>
         <input
           className="input"
           type="password"
@@ -113,14 +110,6 @@ export default function ProfilePage() {
         <button className="btn">{t("Change password")}</button>
         {pwMessage && <p className="text-sm text-muted">{pwMessage}</p>}
       </form>
-
-      <ClaudeConnector />
-
-      <section className="card text-sm">
-        <h2 className="h2 mb-2">📱 {t("Put it on your home screen")}</h2>
-        <p>{t("iPhone: open in Safari → Share → “Add to Home Screen”.")}</p>
-        <p className="mt-1">{t("Android: open in Chrome → ⋮ menu → “Install app”.")}</p>
-      </section>
 
       <button className="btn-ghost py-3 text-danger" onClick={signOut}>{t("Sign out")}</button>
     </div>

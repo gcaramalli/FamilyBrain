@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "./family-context";
+import { KitchenHeader } from "./page-header";
 import { Sheet } from "./sheet";
 import { useToast } from "./toast";
 import { addDays, dayKey, fmtDate, startOfDay } from "@/lib/dates";
@@ -51,9 +52,7 @@ export function MealsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
-        <button className="btn" onClick={() => setEditing(blank())}>+ {t("Meal")}</button>
-      </div>
+      <KitchenHeader action={<button className="btn" onClick={() => setEditing(blank())}>+ {t("Meal")}</button>} />
 
       {meals.length === 0 ? (
         <div className="card text-center text-muted">

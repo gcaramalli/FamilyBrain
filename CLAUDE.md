@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0012 are applied (0013 private space: pending). Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0014 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -67,8 +67,8 @@ Rules of thumb:
 - `recipes` — `ingredients text[]`, `tags text[]`, `favorite`, `kid_friendly`
 - `meals` — what we ate: `eaten_on`, `slot` (breakfast/lunch/dinner/snack), `title`, optional `recipe_id`, `food_groups` (ids in `src/lib/meals.ts`, for balance), `place` (home/out/takeaway), `member_ids` (empty = everyone). Meals tab → "What we ate"; connector `log_meal` / `get_meals`, `dinner_ideas` returns last week's meals, `plan_groceries` gives Claude the habits + what runs out to plan the shopping (no in-app prediction on purpose)
 - `notes` — the family brain
-- `private_boards` / `private_items` — each account's private space (tab 🔒, `src/app/(app)/private`): tiles that are a
-  list or a note, RLS on `profile_id = auth.uid()` so nobody else sees them, not even the admin. Not exposed through the
+- `private_boards` / `private_items` — each account's private space (top of the Me tab, `src/components/private-space.tsx`): tiles that are a
+  list, a note or gift ideas (`private_items.person` / `occasion`, grouped by person; tiles show no content preview), RLS on `profile_id = auth.uid()` so nobody else sees them, not even the admin. Not exposed through the
   connector on purpose (it uses the service role and speaks for the whole family).
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
@@ -86,11 +86,15 @@ Rules of thumb:
   boundary). New tables need RLS + a `family all` policy like the existing ones.
 - Claude connector (mcp-handler + MCP SDK v2): `src/app/api/mcp/[token]/route.ts` (personal link) and
   `src/app/api/mcp/route.ts` (Bearer header). Tokens live hashed in `connector_tokens` (created in Profile →
-  Connect Claude); `src/lib/mcp/context.ts` resolves token → family + speaker into an AsyncLocalStorage.
+  Me → Reminders & AI; ChatGPT uses the same link via Developer mode); `src/lib/mcp/context.ts` resolves token → family + speaker into an AsyncLocalStorage.
   It uses the service-role client (`src/lib/supabase/admin.ts`, bypasses RLS), so every query in
   `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
+- Navigation: five tabs, one job each — Today, Calendar, the kid (if any), Kitchen (`/lists`, `/meals`, `/recipes`,
+  `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles + profile, `/connections`, `/brain`, `/admin`, `/stats`).
+  Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what
+  they set (kid's routine and profile in the kid tab ⚙️, list rename/delete in the list's ⋯).
 - UI text: wrap every string in `t("English text")` from `useFamily()`, then add French and Swedish in
   `src/lib/i18n/fr.ts` / `sv.ts`; `npm run i18n:check` lists what's missing. Format dates with `fmtDate` (`src/lib/dates.ts`).
 - No `prompt()`/`confirm()`/`alert()`: deletions act at once and offer Undo (`useToast`), irreversible ones use `ConfirmButton`.

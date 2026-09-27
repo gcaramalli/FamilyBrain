@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFamily } from "@/components/family-context";
 import { CareSlot } from "@/components/care-slot";
 import { EventForm } from "@/components/event-form";
+import { MemberEditor } from "@/components/member-editor";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { assignSlot, CARE_KINDS, fetchAvailability, findSlot, isCareDay, setAvailability, slotAvailability } from "@/lib/care";
@@ -18,6 +19,7 @@ const startOfWeek = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7))
 export default function KidsPage() {
   const { supabase, kids, me, t } = useFamily();
   const toast = useToast();
+  const router = useRouter();
   const [kidId, setKidId] = useState<string | null>(kids[0]?.id ?? null);
   // Open on the week still to plan: after the last preschool day (e.g. on a
   // Saturday), that's next week.
@@ -79,7 +81,7 @@ export default function KidsPage() {
     return (
       <div className="flex flex-col gap-4">
         <h1 className="h1">{t("Kids")}</h1>
-        <p className="card text-muted">{t("Add your children in Admin → Family members (they don't need an account) to plan drop-offs and pick-ups here.")}</p>
+        <p className="card text-muted">{t("Add your children in Me → Family settings (they don't need an account) to plan drop-offs and pick-ups here.")}</p>
       </div>
     );
   }
@@ -126,7 +128,7 @@ export default function KidsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="h1">{kids.length === 1 ? `${kid.emoji} ${kid.name}` : t("Kids")}</h1>
-        <button className="btn-ghost" onClick={() => setSettings(true)}>⚙️ {t("Usual times")}</button>
+        <button className="btn-ghost" onClick={() => setSettings(true)} aria-label={t("Settings for {name}", { name: kid.name })}>⚙️</button>
       </div>
 
       {kids.length > 1 && (
@@ -189,7 +191,6 @@ export default function KidsPage() {
         {shown.length === 0 && <p className="p-3 text-sm text-muted">{t("No preschool days this week.")}</p>}
       </section>
 
-      <p className="text-sm text-muted">{t("Tap a slot once if you can, twice if you can't. The one who goes taps “I'm going”. ⋯ changes the time or place.")}</p>
       <button className="btn-ghost py-3" onClick={copyToNextWeek}>{t("Copy this week to next week")}</button>
 
       <Sheet open={!!editing} onClose={() => setEditing(null)} title={t("Edit event")}>
@@ -204,8 +205,20 @@ export default function KidsPage() {
         )}
       </Sheet>
 
-      <Sheet open={settings} onClose={() => setSettings(false)} title={t("Usual times for {name}", { name: kid.name })}>
-        {settings && <KidSettings kid={kid} onDone={() => setSettings(false)} />}
+      {/* Everything about the kid in one place: preschool routine, then profile. */}
+      <Sheet open={settings} onClose={() => setSettings(false)} title={`${kid.emoji} ${kid.name}`}>
+        {settings && (
+          <div className="flex flex-col gap-5">
+            <section className="flex flex-col gap-2">
+              <h3 className="font-semibold">{t("Usual times")}</h3>
+              <KidSettings kid={kid} onDone={() => setSettings(false)} />
+            </section>
+            <section className="flex flex-col gap-2">
+              <h3 className="font-semibold">{t("Profile")}</h3>
+              <MemberEditor member={kid} onChange={() => { setSettings(false); router.refresh(); }} />
+            </section>
+          </div>
+        )}
       </Sheet>
     </div>
   );
