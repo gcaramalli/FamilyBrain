@@ -176,8 +176,8 @@ export type PrivateItem = {
 // Private work space (owner-only): people at work, projects, recurring
 // meetings, and what to do / hand over / discuss with them.
 export type WorkRole = "boss" | "peer" | "team" | "other";
-export type WorkPerson = { id: string; name: string; role: WorkRole; created_at: string };
-export type WorkProject = { id: string; name: string; person_ids: string[]; archived: boolean; created_at: string };
+export type WorkPerson = { id: string; name: string; role: WorkRole; notes: string; created_at: string };
+export type WorkProject = { id: string; name: string; person_ids: string[]; archived: boolean; notes: string; created_at: string };
 export type WorkMeeting = { id: string; name: string; weekday: number | null; person_ids: string[]; created_at: string };
 export type WorkItem = {
   id: string;
@@ -188,6 +188,7 @@ export type WorkItem = {
   project_id: string | null;
   meeting_id: string | null;
   due_date: string | null;
+  not_before: string | null; // off agendas until then ("for next week's meeting")
   waiting_since: string | null;
   done_at: string | null;
   created_at: string;

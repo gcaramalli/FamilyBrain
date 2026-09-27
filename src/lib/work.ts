@@ -58,21 +58,54 @@ export function personItems(person: WorkPerson, items: WorkItem[], projects: Wor
   };
 }
 
-// A meeting's agenda: what was put on it, what to hand over to or discuss with
-// the attendees, and what they still owe (waiting).
-export function meetingAgenda(meeting: WorkMeeting, items: WorkItem[]) {
+// A meeting's agenda on `today` (YYYY-MM-DD): what was put on it, what to hand
+// over to or discuss with the attendees, what they still owe (waiting), and
+// what was already set aside for next time (not_before in the future).
+export function meetingAgenda(meeting: WorkMeeting, items: WorkItem[], today: string) {
   const attendees = new Set(meeting.person_ids);
   const forAttendee = (i: WorkItem) => !!i.person_id && attendees.has(i.person_id) && !i.meeting_id;
+  const later = (i: WorkItem) => !!i.not_before && i.not_before > today;
+  const candidate = (i: WorkItem) => i.status === "open" && (i.meeting_id === meeting.id || (forAttendee(i) && i.kind !== "todo"));
   return {
-    onAgenda: items.filter((i) => i.status === "open" && (i.meeting_id === meeting.id || (forAttendee(i) && i.kind !== "todo"))),
+    onAgenda: items.filter((i) => candidate(i) && !later(i)),
+    nextTime: items.filter((i) => candidate(i) && later(i)),
     waiting: items.filter((i) => i.status === "waiting" && (i.meeting_id === meeting.id || forAttendee(i))),
   };
+}
+
+// Next day the meeting happens, strictly after `today` (YYYY-MM-DD). No fixed
+// day: tomorrow, so it still leaves today's agenda.
+export function nextMeetingDate(meeting: WorkMeeting, today: string) {
+  const d = new Date(`${today}T12:00:00Z`);
+  const iso = ((d.getUTCDay() + 6) % 7) + 1;
+  const ahead = meeting.weekday ? (meeting.weekday - iso + 7) % 7 || 7 : 1;
+  d.setUTCDate(d.getUTCDate() + ahead);
+  return d.toISOString().slice(0, 10);
 }
 
 // Handed over / discussed: a "give" waits on the person, the rest is done.
 export function afterMeeting(item: WorkItem): Partial<WorkItem> {
   const now = new Date().toISOString();
   return item.kind === "give" && item.person_id ? { status: "waiting", waiting_since: now } : { status: "done", done_at: now };
+}
+
+// How far back finished items are kept in view (app and Claude).
+export const HISTORY_DAYS = 60;
+
+// Per person: what's open, what they owe and since when, what got done.
+export function peopleSummary(people: WorkPerson[], items: WorkItem[], done: WorkItem[]) {
+  return people.map((p) => {
+    const mine = items.filter((i) => i.person_id === p.id);
+    const waiting = mine.filter((i) => i.status === "waiting");
+    return {
+      person: p.name,
+      role: p.role,
+      open: mine.filter((i) => i.status === "open").length,
+      waiting_on_them: waiting.length,
+      oldest_waiting_days: waiting.length ? Math.max(...waiting.map((i) => daysSince(i.waiting_since ?? i.created_at))) : null,
+      done_recently: done.filter((i) => i.person_id === p.id).length,
+    };
+  });
 }
 
 export const daysSince = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000));

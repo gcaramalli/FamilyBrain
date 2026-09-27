@@ -6,16 +6,17 @@ import { useFamily } from "@/components/family-context";
 import { PageHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
-import { fmtDate } from "@/lib/dates";
+import { dayKey, fmtDate } from "@/lib/dates";
 import type { WorkItem, WorkMeeting, WorkPerson, WorkProject, WorkRole } from "@/lib/types";
-import { afterMeeting, daysSince, meetingAgenda, parseCapture, personItems, WORK_KINDS, WORK_ROLES } from "@/lib/work";
+import { afterMeeting, daysSince, HISTORY_DAYS, meetingAgenda, nextMeetingDate, parseCapture, personItems, WORK_KINDS, WORK_ROLES } from "@/lib/work";
 
 // My work, private: people (manager, team, peers), projects and recurring
 // meetings, and what to do, hand over or discuss with each. Claude can file
 // things here through my own connector link (see src/lib/mcp/tools.ts).
 
 type Tab = "people" | "projects" | "meetings" | "waiting";
-type Data = { people: WorkPerson[]; projects: WorkProject[]; meetings: WorkMeeting[]; items: WorkItem[] };
+// items = open and waiting; done = finished in the last HISTORY_DAYS, newest first.
+type Data = { people: WorkPerson[]; projects: WorkProject[]; meetings: WorkMeeting[]; items: WorkItem[]; done: WorkItem[] };
 type Open =
   | { type: "person"; id: string }
   | { type: "project"; id: string }
@@ -35,17 +36,20 @@ export default function WorkPage() {
   const [open, setOpen] = useState<Open | null>(null);
 
   const load = useCallback(async () => {
-    const [p, pr, m, i] = await Promise.all([
+    const since = new Date(Date.now() - HISTORY_DAYS * 86400000).toISOString();
+    const [p, pr, m, i, d] = await Promise.all([
       supabase.from("work_people").select("*").order("name"),
       supabase.from("work_projects").select("*").order("name"),
       supabase.from("work_meetings").select("*").order("weekday", { nullsFirst: false }).order("name"),
       supabase.from("work_items").select("*").neq("status", "done").order("created_at"),
+      supabase.from("work_items").select("*").eq("status", "done").gte("done_at", since).order("done_at", { ascending: false }),
     ]);
     setData({
       people: (p.data ?? []) as WorkPerson[],
       projects: (pr.data ?? []) as WorkProject[],
       meetings: (m.data ?? []) as WorkMeeting[],
       items: (i.data ?? []) as WorkItem[],
+      done: (d.data ?? []) as WorkItem[],
     });
   }, [supabase]);
 
@@ -211,7 +215,8 @@ function ItemRow({
   const kind = WORK_KINDS.find((k) => k.id === item.kind);
 
   function tick() {
-    if (inMeeting && item.status === "open") {
+    if (item.status === "done") update(item, { status: item.waiting_since ? "waiting" : "open", done_at: null }, t("Reopened"));
+    else if (inMeeting && item.status === "open") {
       const next = afterMeeting(item);
       update(item, next, next.status === "waiting" ? t("Handed over to {name}", { name: person?.name ?? "" }) : t("Done: {item}", { item: item.title }));
     } else update(item, { status: "done", done_at: new Date().toISOString() }, t("Done: {item}", { item: item.title }));
@@ -220,10 +225,14 @@ function ItemRow({
   return (
     <li className="flex min-h-12 items-center gap-3 py-1">
       <button onClick={tick} aria-label={t("Mark as done")} className="-m-2 flex h-11 w-11 shrink-0 items-center justify-center">
-        <span className={`h-5 w-5 border-[1.5px] border-foreground/60 ${item.kind === "todo" ? "rounded-md" : "rounded-full"}`} />
+        <span
+          className={`flex h-5 w-5 items-center justify-center border-[1.5px] text-xs ${item.kind === "todo" ? "rounded-md" : "rounded-full"} ${item.status === "done" ? "border-foreground bg-foreground text-background" : "border-foreground/60"}`}
+        >
+          {item.status === "done" ? "✓" : ""}
+        </span>
       </button>
       <button onClick={() => onOpen({ type: "item", id: item.id })} className="min-w-0 flex-1 text-left">
-        <span className="block break-words">{item.title}</span>
+        <span className={`block break-words ${item.status === "done" ? "text-muted line-through" : ""}`}>{item.title}</span>
         <span className="flex flex-wrap gap-1.5 pt-0.5 text-xs text-muted">
           {item.kind !== "todo" && kind && <span>{t(kind.label)}</span>}
           {person && !hide.includes("person") && <span>@{person.name}</span>}
@@ -231,6 +240,10 @@ function ItemRow({
           {meeting && !hide.includes("meeting") && <span>#{meeting.name}</span>}
           {item.status === "waiting" && item.waiting_since && <span className="font-medium">{t("waiting {n} d", { n: daysSince(item.waiting_since) })}</span>}
           {item.due_date && <span>{fmtDate(`${item.due_date}T12:00:00`, { day: "numeric", month: "short" })}</span>}
+          {item.status !== "done" && item.not_before && item.not_before > dayKey(new Date()) && (
+            <span>{t("from {date}", { date: fmtDate(`${item.not_before}T12:00:00`, { weekday: "short", day: "numeric", month: "short" }) })}</span>
+          )}
+          {item.status === "done" && item.done_at && <span>{fmtDate(item.done_at, { day: "numeric", month: "short" })}</span>}
         </span>
       </button>
     </li>
@@ -338,7 +351,7 @@ function MeetingsTab({ data, onOpen }: { data: Data; onOpen: (o: Open) => void }
       {sorted.length > 0 && (
         <ul className="card divide-y divide-border py-2">
           {sorted.map((m) => {
-            const { onAgenda, waiting } = meetingAgenda(m, data.items);
+            const { onAgenda, waiting } = meetingAgenda(m, data.items, dayKey(new Date()));
             const day = m.weekday ? (m.weekday === today ? t("Today") : weekdayName(m.weekday)) : undefined;
             return <Row key={m.id} title={m.name} sub={day} count={onAgenda.length + waiting.length} onClick={() => onOpen({ type: "meeting", id: m.id })} />;
           })}
@@ -405,6 +418,7 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
           <ItemList title={t("Waiting on them")} items={direct.filter((i) => i.status === "waiting")} hide={["person"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           <ItemList title={t("On their projects")} items={viaProjects} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!direct.length && !viaProjects.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
+          <History items={data.done.filter((i) => i.person_id === p.id)} hide={["person"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           <EntityForm key={p.id} what="person" data={data} person={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
         </div>
       );
@@ -418,6 +432,7 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
         <div className="flex flex-col gap-4">
           <ItemList items={items} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!items.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
+          <History items={data.done.filter((i) => i.project_id === p.id)} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           <EntityForm key={p.id} what="project" data={data} project={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
         </div>
       );
@@ -426,19 +441,29 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
     const m = data.meetings.find((x) => x.id === open.id);
     if (m) {
       title = m.name;
-      const { onAgenda, waiting } = meetingAgenda(m, data.items);
+      const { onAgenda, nextTime, waiting } = meetingAgenda(m, data.items, dayKey(new Date()));
+      const attendees = new Set(m.person_ids);
       body = (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">{t("Tick an item once it's handed over or discussed: what you hand over then waits on the person.")}</p>
           <ItemList title={t("Agenda")} items={onAgenda} hide={["meeting"]} inMeeting data={data} onOpen={setOpen} onChanged={onChanged} />
           <ItemList title={t("To follow up")} items={waiting} hide={["meeting"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!onAgenda.length && !waiting.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
+          <MeetingCapture meeting={m} data={data} onAdded={onChanged} />
+          <ItemList title={t("Next time")} items={nextTime} hide={["meeting"]} data={data} onOpen={setOpen} onChanged={onChanged} />
+          <History
+            items={data.done.filter((i) => i.meeting_id === m.id || (!i.meeting_id && !!i.person_id && attendees.has(i.person_id) && i.kind !== "todo"))}
+            hide={["meeting"]}
+            data={data}
+            onOpen={setOpen}
+            onChanged={onChanged}
+          />
           <EntityForm key={m.id} what="meeting" data={data} meeting={m} onDone={(id) => (onChanged(), id ? undefined : close())} />
         </div>
       );
     }
   } else if (open?.type === "item") {
-    const i = data.items.find((x) => x.id === open.id);
+    const i = [...data.items, ...data.done].find((x) => x.id === open.id);
     if (i) {
       title = t("Edit");
       body = <ItemForm key={i.id} item={i} data={data} onChanged={onChanged} onClose={close} />;
@@ -475,6 +500,7 @@ function EntityForm({
   const [personIds, setPersonIds] = useState<string[]>(project?.person_ids ?? meeting?.person_ids ?? []);
   const [weekday, setWeekday] = useState<number | null>(meeting?.weekday ?? null);
   const [archived, setArchived] = useState(project?.archived ?? false);
+  const [notes, setNotes] = useState(person?.notes ?? project?.notes ?? "");
   const table = what === "person" ? "work_people" : what === "project" ? "work_projects" : "work_meetings";
 
   async function save(e: React.FormEvent) {
@@ -482,9 +508,9 @@ function EntityForm({
     if (!name.trim()) return;
     const row: Record<string, unknown> =
       what === "person"
-        ? { name: name.trim(), role }
+        ? { name: name.trim(), role, notes: notes.trim() }
         : what === "project"
-          ? { name: name.trim(), person_ids: personIds, archived }
+          ? { name: name.trim(), person_ids: personIds, archived, notes: notes.trim() }
           : { name: name.trim(), person_ids: personIds, weekday };
     if (existing) {
       await supabase.from(table).update(row).eq("id", existing.id);
@@ -527,6 +553,16 @@ function EntityForm({
           <span className="label">{what === "project" ? t("People on it") : t("Attendees")}</span>
           <PeoplePicker people={data.people} value={personIds} onChange={setPersonIds} />
         </>
+      )}
+      {what !== "meeting" && (
+        <textarea
+          className="input min-h-20"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder={what === "person" ? t("Job, what they own, how they like to work…") : t("Goal, context, who decides…")}
+          maxLength={2000}
+          aria-label={t("Notes")}
+        />
       )}
       {what === "meeting" && (
         <select className="input" value={weekday ?? ""} onChange={(e) => setWeekday(e.target.value ? Number(e.target.value) : null)} aria-label={t("Day")}>
@@ -574,8 +610,10 @@ function ItemForm({ item, data, onChanged, onClose }: { item: WorkItem; data: Da
         project_id: d.project_id,
         meeting_id: d.meeting_id,
         due_date: d.due_date || null,
-        waiting_since: d.status === "waiting" ? (item.status === "waiting" ? item.waiting_since : now) : null,
-        done_at: d.status === "done" ? now : null,
+        not_before: d.not_before || null,
+        // Kept once done: how long it took them.
+        waiting_since: d.status === "waiting" ? (item.status === "waiting" ? item.waiting_since : now) : d.status === "done" ? item.waiting_since : null,
+        done_at: d.status === "done" ? (item.status === "done" ? item.done_at : now) : null,
       })
       .eq("id", item.id);
     onChanged();
@@ -620,6 +658,10 @@ function ItemForm({ item, data, onChanged, onClose }: { item: WorkItem; data: Da
         <span className="label">{t("Due date")}</span>
         <input type="date" className="input" value={d.due_date ?? ""} onChange={(e) => set("due_date", e.target.value || null)} />
       </label>
+      <label>
+        <span className="label">{t("Keep off agendas until")}</span>
+        <input type="date" className="input" value={d.not_before ?? ""} onChange={(e) => set("not_before", e.target.value || null)} />
+      </label>
       <button className="btn" disabled={!d.title.trim()}>{t("Save")}</button>
       <button
         type="button"
@@ -631,6 +673,73 @@ function ItemForm({ item, data, onChanged, onClose }: { item: WorkItem; data: Da
       >
         {t("Delete")}
       </button>
+    </form>
+  );
+}
+
+// Finished in the last weeks, folded away under the live items.
+function History({ items, ...rest }: { items: WorkItem[] } & Omit<React.ComponentProps<typeof ItemRow>, "item">) {
+  const { t } = useFamily();
+  const [show, setShow] = useState(false);
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-1">
+      <button className="self-start text-sm text-muted underline" onClick={() => setShow(!show)}>
+        {show ? t("Hide done") : t("Done lately ({n})", { n: items.length })}
+      </button>
+      {show && <ItemList items={items} {...rest} />}
+    </section>
+  );
+}
+
+// In the meeting: note what comes up next time, or hand things over on the
+// spot ("@Karim send the numbers", "@all fill in the survey").
+function MeetingCapture({ meeting, data, onAdded }: { meeting: WorkMeeting; data: Data; onAdded: () => void }) {
+  const { supabase, t } = useFamily();
+  const [line, setLine] = useState("");
+  const [mode, setMode] = useState<"next" | "now">("next");
+  const everyone = /(^|\s)@(all|tous|alla)(?=\s|$)/i.test(line);
+  const parsed = parseCapture(line.replace(/(^|\s)@(all|tous|alla)(?=\s|$)/gi, " "), data.people, data.projects, data.meetings);
+  const targets = everyone ? meeting.person_ids : parsed.person ? [parsed.person.id] : [];
+  const ready = !!parsed.title && (mode === "next" || targets.length > 0);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!ready) return;
+    const base = { title: parsed.title.slice(0, 500), project_id: parsed.project?.id ?? null, meeting_id: meeting.id };
+    const now = new Date().toISOString();
+    const rows: Record<string, unknown>[] =
+      mode === "next"
+        ? (targets.length ? targets : [null]).map((person_id) => ({ ...base, person_id, kind: "discuss", not_before: nextMeetingDate(meeting, dayKey(new Date())) }))
+        : targets.map((person_id) => ({ ...base, person_id, kind: "give", status: "waiting", waiting_since: now }));
+    await supabase.from("work_items").insert(rows);
+    setLine("");
+    onAdded();
+  }
+
+  const who = targets.map((id) => data.people.find((p) => p.id === id)?.name).filter(Boolean).join(", ");
+  return (
+    <form onSubmit={add} className="flex flex-col gap-2 rounded-2xl bg-accent-soft p-3">
+      <div className="grid grid-cols-2 rounded-full bg-surface p-1 text-sm">
+        {(["next", "now"] as const).map((k) => (
+          <button type="button" key={k} onClick={() => setMode(k)} className={`min-h-9 rounded-full ${mode === k ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}>
+            {k === "next" ? t("For next time") : t("Hand over now")}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          className="input"
+          value={line}
+          onChange={(e) => setLine(e.target.value)}
+          placeholder={mode === "next" ? t("What to bring up next time…") : t("@person or @all, what to do…")}
+          maxLength={600}
+        />
+        <button className="btn" disabled={!ready} aria-label={t("Add")}>+</button>
+      </div>
+      {mode === "now" && (
+        <p className="text-xs text-muted">{who ? t("Waiting on: {names}", { names: who }) : t("Name someone with @, or @all for everyone in the meeting.")}</p>
+      )}
     </form>
   );
 }
