@@ -25,13 +25,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   }
 
-  const [{ data: family }, { data: members }] = await Promise.all([
+  const [{ data: family }, { data: members }, { data: superAdmin }] = await Promise.all([
     supabase.from("families").select("id, name").eq("id", profile.family_id).single<Family>(),
     supabase.from("members").select("*").order("created_at"),
+    // Hembrain-wide stats access (level 3); RLS only shows a user their own row.
+    supabase.from("super_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
   ]);
 
   return (
-    <FamilyProvider profile={profile} family={family ?? { id: profile.family_id, name: "Our family" }} members={(members ?? []) as Member[]} ai={aiEnabled()}>
+    <FamilyProvider profile={profile} family={family ?? { id: profile.family_id, name: "Our family" }} members={(members ?? []) as Member[]} ai={aiEnabled()} superAdmin={!!superAdmin}>
       <AppShell>{children}</AppShell>
     </FamilyProvider>
   );

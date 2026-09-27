@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
 // Refreshes the Supabase session cookie on every request and sends
-// signed-out visitors to /login. API routes handle their own auth.
+// signed-out visitors to the public /welcome page (from "/") or to /login
+// (anywhere else). API routes handle their own auth.
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -29,11 +30,11 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/auth");
+  const isPublic = path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/auth") || path.startsWith("/welcome");
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = path === "/" ? "/welcome" : "/login";
     return NextResponse.redirect(url);
   }
 
