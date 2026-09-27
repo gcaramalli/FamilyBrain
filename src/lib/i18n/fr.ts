@@ -649,4 +649,9 @@ export const fr: Record<string, string> = {
   "Winter boots": "Bottes d'hiver",
   "Sun hat": "Chapeau de soleil",
   "Sandals": "Sandales",
+  "Wake-up time": "Heure du réveil",
+  "A nap": "Une sieste",
+  "Last night": "La nuit dernière",
+  "Log {name}'s nights and naps, even afterwards.": "Note les nuits et siestes de {name}, même après coup.",
+  "Asleep right now": "Dort en ce moment",
 };

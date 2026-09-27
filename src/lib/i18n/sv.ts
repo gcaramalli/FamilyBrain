@@ -649,4 +649,9 @@ export const sv: Record<string, string> = {
   "Winter boots": "Vinterkängor",
   "Sun hat": "Solhatt",
   "Sandals": "Sandaler",
+  "Wake-up time": "Uppvakningstid",
+  "A nap": "En tupplur",
+  "Last night": "I natt",
+  "Log {name}'s nights and naps, even afterwards.": "Logga {name}s nätter och tupplurar, även i efterhand.",
+  "Asleep right now": "Sover just nu",
 };

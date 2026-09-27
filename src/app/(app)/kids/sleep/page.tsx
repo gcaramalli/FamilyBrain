@@ -65,23 +65,40 @@ export default function SleepPage() {
   const avgBed = avgClock(nights.map((n) => n.start), minutesOfDay, true);
   const avgWake = avgClock(nights.map((n) => n.end).filter((e) => e !== null), minutesOfDay);
 
-  // Evening: bedtime; otherwise a nap.
-  const likelyKind = () => (new Date().getHours() >= 17 || new Date().getHours() < 5 ? "night" : "nap");
-
-  async function fallAsleep(kind: "nap" | "night") {
-    if (!kid) return;
-    await supabase.from("kid_sleep").insert({ kid_id: kid.id, kind, starts_at: new Date().toISOString() });
-    load();
+  // Logged mostly after the fact ("last night: 19:00 → 6:00"), prefilled
+  // with the usual times and corrected as needed. A night can be saved with
+  // only its bedtime and get its wake-up the next morning.
+  const evening = new Date().getHours() >= 17 || new Date().getHours() < 5;
+  const round5 = (d: Date) => new Date(Math.round(d.getTime() / 300000) * 300000);
+  const at = (day: Date, hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    const d = startOfDay(day);
+    d.setHours(h, m);
+    return d;
+  };
+  const blank = { wakings: 0, notes: null };
+  const logNight = () => {
+    const today = new Date();
+    if (evening) {
+      // Tonight's bedtime, the wake-up comes tomorrow.
+      const bed = new Date().getHours() < 5 ? at(addDays(today, -1), avgBed ?? "19:00") : at(today, avgBed ?? "19:00");
+      setEditing({ kind: "night", starts_at: bed.toISOString(), ends_at: null, ...blank });
+    } else {
+      const wake = at(today, avgWake ?? "06:30");
+      setEditing({ kind: "night", starts_at: at(addDays(today, -1), avgBed ?? "19:00").toISOString(), ends_at: (wake > today ? round5(today) : wake).toISOString(), ...blank });
+    }
+  };
+  function logNap() {
+    const now = new Date();
+    setEditing({ kind: "nap", starts_at: round5(new Date(now.getTime() - 3600000)).toISOString(), ends_at: round5(now).toISOString(), ...blank });
   }
+  // Wake-up of the sleep in progress, set (and adjustable) in the form.
+  const setWakeUp = () => current && setEditing({ ...current, ends_at: round5(new Date()).toISOString() });
 
-  async function wakeUp() {
-    if (!current) return;
-    await supabase.from("kid_sleep").update({ ends_at: new Date().toISOString() }).eq("id", current.id);
+  async function asleepNow() {
+    if (!kid) return;
+    await supabase.from("kid_sleep").insert({ kid_id: kid.id, kind: evening ? "night" : "nap", starts_at: new Date().toISOString() });
     load();
-    toast(t("Woke up · slept {duration}", { duration: fmtDuration(minutesBetween(current.starts_at, new Date())) }), async () => {
-      await supabase.from("kid_sleep").update({ ends_at: null }).eq("id", current.id);
-      load();
-    });
   }
 
   async function addWaking() {
@@ -101,11 +118,6 @@ export default function SleepPage() {
         module="sleep"
         back="/kids"
         backLabel={`${kid.emoji} ${kid.name}`}
-        action={
-          <button className="btn" onClick={() => setEditing({ kind: likelyKind(), starts_at: new Date(Date.now() - 3600000).toISOString(), ends_at: new Date().toISOString(), wakings: 0, notes: null })}>
-            + {t("Log")}
-          </button>
-        }
       />
 
       <section className="card flex flex-col gap-3">
@@ -119,7 +131,7 @@ export default function SleepPage() {
               <p className="text-sm text-muted">{current.wakings === 1 ? t("1 waking so far") : t("{n} wakings so far", { n: current.wakings })}</p>
             )}
             <div className="flex gap-2">
-              <button className="btn flex-1" onClick={wakeUp}><Sun size={18} /> {t("Woke up")}</button>
+              <button className="btn flex-1" onClick={setWakeUp}><Sun size={18} /> {t("Wake-up time")}</button>
               {current.kind === "night" && <button className="btn-ghost" onClick={addWaking}>+1 {t("waking")}</button>}
             </div>
           </>
@@ -132,13 +144,14 @@ export default function SleepPage() {
                   <span className="font-normal text-muted"> · {fmtDuration(minutesBetween(state.since, new Date()))}</span>
                 </>
               ) : (
-                t("Tap when {name} falls asleep.", { name: kid.name })
+                t("Log {name}'s nights and naps, even afterwards.", { name: kid.name })
               )}
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <button className={likelyKind() === "nap" ? "btn" : "btn-ghost"} onClick={() => fallAsleep("nap")}>😴 {t("Nap")}</button>
-              <button className={likelyKind() === "night" ? "btn" : "btn-ghost"} onClick={() => fallAsleep("night")}><Moon size={18} /> {t("Night")}</button>
+              <button className={evening ? "btn-ghost" : "btn"} onClick={logNap}>😴 {t("A nap")}</button>
+              <button className={evening ? "btn" : "btn-ghost"} onClick={logNight}><Moon size={18} /> {evening ? t("Bedtime") : t("Last night")}</button>
             </div>
+            <button className="self-start text-sm text-muted underline" onClick={asleepNow}>{t("Asleep right now")}</button>
           </>
         )}
       </section>

@@ -9,7 +9,7 @@ import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
 import { ageInMonths } from "@/lib/dates";
 import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
-import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials } from "@/lib/wardrobe";
+import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
 import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems } from "@/lib/work";
 import type { KidClothes, KidSleep, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
@@ -1419,12 +1419,18 @@ export function registerTools(server: McpServer) {
         .order("created_at");
       if (error) throw new Error(error.message);
       const rows = (data ?? []) as Pick<KidClothes, "title" | "category" | "size" | "status" | "notes">[];
-      const out = (r: (typeof rows)[number]) => ({ title: r.title, size: r.size ?? undefined, notes: r.notes ?? undefined });
+      const age = kid.birthdate ? ageInMonths(kid.birthdate) : null;
+      const out = (r: (typeof rows)[number]) => ({
+        title: r.title,
+        size: r.size ?? undefined,
+        notes: r.notes ?? undefined,
+        ...(r.status === "have" && probablyTooSmall(r.size, r.category === "shoes" ? kid.shoe_size : kid.clothing_size, age, r.category === "shoes") ? { probably_too_small: true } : {}),
+      });
       const has: Record<string, ReturnType<typeof out>[]> = {};
       for (const r of rows.filter((x) => x.status === "have")) (has[r.category] ??= []).push(out(r));
       return text({
         kid: kid.name,
-        age_months: kid.birthdate ? ageInMonths(kid.birthdate) : null,
+        age_months: age,
         clothing_size: kid.clothing_size,
         shoe_size: kid.shoe_size,
         sizes_updated_on: kid.sizes_updated_on,

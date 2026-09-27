@@ -7,7 +7,7 @@ import { useKid } from "@/components/kid-context";
 import { PageHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
-import { dayKey, fmtDate } from "@/lib/dates";
+import { ageInMonths, dayKey, fmtDate } from "@/lib/dates";
 import type { KidClothes } from "@/lib/types";
 import { CLOTHES_CATEGORIES, CLOTHES_STATUSES, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
 
@@ -41,6 +41,7 @@ export default function WardrobePage() {
   const have = clothes.filter((c) => c.status === "have");
   const outgrown = clothes.filter((c) => c.status === "outgrown");
   const missing = missingEssentials(clothes, t);
+  const age = kid.birthdate ? ageInMonths(kid.birthdate) : null;
   const sizeFor = (category: string) => (category === "shoes" ? kid.shoe_size : kid.clothing_size);
   const blank = (status: Draft["status"], title = "", category = "other"): Draft => ({ title, category, size: sizeFor(category), status, notes: null });
 
@@ -123,7 +124,7 @@ export default function WardrobePage() {
               <h3 className="border-b border-border pb-1 text-sm font-semibold">{cat.emoji} {t(cat.label)}</h3>
               <ul className="divide-y divide-border">
                 {list.map((c) => {
-                  const small = probablyTooSmall(c.size, sizeFor(c.category));
+                  const small = probablyTooSmall(c.size, sizeFor(c.category), age, c.category === "shoes");
                   return (
                     <li key={c.id} className="flex min-h-12 items-center gap-2">
                       <button className="min-w-0 flex-1 py-2 text-left" onClick={() => setEditing(c)}>

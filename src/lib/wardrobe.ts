@@ -53,14 +53,36 @@ export function missingEssentials(items: { title: string; status: string }[], tr
   });
 }
 
-// "92" < "98": an item in a size below the kid's current one is probably too
-// small. Only compares plain numbers ("86/92" uses the larger one).
-export function probablyTooSmall(itemSize: string | null, current: string | null) {
-  const num = (s: string | null) => {
-    const all = (s ?? "").match(/\d+(?:[.,]\d+)?/g);
-    return all ? Math.max(...all.map((x) => Number(x.replace(",", ".")))) : null;
-  };
-  const a = num(itemSize);
-  const b = num(current);
-  return a !== null && b !== null && a < b;
+// Oldest age (months) a Nordic centimetre size usually fits: 74 ≈ 6–9 months,
+// 86 ≈ 12–18 months, 92 ≈ 18–24 months…
+const CM_UNTIL_MONTHS: [number, number][] = [[50, 1], [56, 2], [62, 4], [68, 6], [74, 9], [80, 12], [86, 18], [92, 24], [98, 36], [104, 48], [110, 60], [116, 72], [122, 84], [128, 96]];
+
+// Upper age in months written in a size: "6-9 mois", "12M", "6–9 mån", "2 ans", "3Y".
+function sizeMonths(size: string) {
+  const s = size.toLowerCase();
+  const months = s.match(/(\d+)\s*(?:[-–/]|à|to|till)?\s*(\d+)?\s*(?:m\b|mo\b|mois|mån|months?)/);
+  if (months) return Number(months[2] ?? months[1]);
+  const years = s.match(/(\d+)\s*(?:[-–/]|à|to|till)?\s*(\d+)?\s*(?:y\b|yrs?|years?|ans?\b|år)/);
+  if (years) return Number(years[2] ?? years[1]) * 12 + 11;
+  return null;
+}
+
+const largestNumber = (s: string | null) => {
+  const all = (s ?? "").match(/\d+(?:[.,]\d+)?/g);
+  return all ? Math.max(...all.map((x) => Number(x.replace(",", ".")))) : null;
+};
+
+// Probably too small for the kid now: below their current size ("92" < "98";
+// "86/92" counts as 92), or, for sizes in months or for clothes when no current
+// size is set, made for younger kids than they are.
+export function probablyTooSmall(itemSize: string | null, current: string | null, ageMonths?: number | null, shoes = false) {
+  if (!itemSize) return false;
+  const byAge = sizeMonths(itemSize);
+  if (byAge !== null) return ageMonths != null && byAge < ageMonths;
+  const a = largestNumber(itemSize);
+  const b = largestNumber(current);
+  if (a !== null && b !== null) return a < b;
+  if (shoes || a === null || ageMonths == null || a < 44) return false;
+  const until = CM_UNTIL_MONTHS.find(([cm]) => a <= cm)?.[1];
+  return until !== undefined && until < ageMonths;
 }
