@@ -89,6 +89,8 @@ export default function TodayPage() {
         <h1 className="h1">{greeting}, {profile.display_name || t("there")}</h1>
       </div>
 
+      <SendGift />
+
       {kids.map((kid) => (
         <KidCard key={kid.id} kid={kid} events={events} answers={answers} onChanged={loadEvents} />
       ))}
@@ -131,8 +133,6 @@ export default function TodayPage() {
         <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
         <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
       </nav>
-
-      <SendGift />
     </div>
   );
 }
