@@ -11,15 +11,13 @@ import { addDays, dayKey, fmtDate, formatDayHeading, startOfDay } from "@/lib/da
 import { groupByDay, isMultiDay } from "@/lib/events";
 import { fetchCalendar } from "@/lib/occasions";
 import { MODULES } from "@/lib/modules";
+import { careKind } from "@/lib/care";
 import type { EventOccurrence, ListItem, Member } from "@/lib/types";
 import { fetchDueTodos, TodoRow, todoDay } from "@/components/todo-row";
 
 type Mode = "month" | "week" | "agenda";
 const AGENDA_DAYS = 14;
 const MONTH_CELLS = 42; // 6 weeks, like Apple Calendar
-
-// Drop-offs and pick-ups get their own row in the week view.
-const DUTY = /(pick|drop|hämt|lämn|récup|dépos|förskola|preschool|daycare|kindergarten|school|skola)/i;
 
 function startOfWeek(d: Date) {
   const x = startOfDay(d);
@@ -100,9 +98,13 @@ export default function CalendarPage() {
     };
   }, [supabase, load]);
 
+  // Kids' drop-offs and pick-ups live in the kid tab, not here: they'd fill every day.
   // Filter: only what one person does or what is about them.
   const events = useMemo(
-    () => (who ? allEvents.filter((e) => e.badge || e.responsible_member_id === who || e.for_member_id === who) : allEvents),
+    () =>
+      allEvents.filter(
+        (e) => careKind(e) === null && (!who || e.badge || e.responsible_member_id === who || e.for_member_id === who),
+      ),
     [allEvents, who],
   );
 
@@ -233,11 +235,11 @@ export default function CalendarPage() {
 
       {mode === "week" && (
         <section className="card p-3">
-          <div className="mb-2 text-sm text-muted first-letter:uppercase">{t("drop-offs, pick-ups & trips")}</div>
+          <div className="mb-2 text-sm text-muted first-letter:uppercase">{t("trips & all-day")}</div>
           <div className="grid grid-cols-7 gap-1 text-center">
             {days.map((d) => {
               const k = dayKey(d);
-              const shown = (byDay.get(k) ?? []).filter((e) => e.care || DUTY.test(e.title) || e.all_day || isMultiDay(e));
+              const shown = (byDay.get(k) ?? []).filter((e) => e.all_day || isMultiDay(e));
               return (
                 <button
                   key={k}

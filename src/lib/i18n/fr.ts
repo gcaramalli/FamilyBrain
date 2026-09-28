@@ -333,7 +333,7 @@ export const fr: Record<string, string> = {
   "admin": "admin",
   "can": "peut",
   "can't": "ne peut pas",
-  "drop-offs, pick-ups & trips": "dépôts, récupérations et voyages",
+  "trips & all-day": "voyages et journées entières",
   "e.g. 2 or 1 kg": "ex. 2 ou 1 kg",
   "e.g. Förskolan Solrosen, Hantverkargatan 3": "ex. Förskolan Solrosen, Hantverkargatan 3",
   "e.g. Salmon, potatoes, green beans": "ex. Saumon, pommes de terre, haricots verts",
