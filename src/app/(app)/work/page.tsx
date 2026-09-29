@@ -495,12 +495,25 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
     const m = data.meetings.find((x) => x.id === open.id);
     if (m) {
       title = m.name;
-      const { onAgenda, nextTime, waiting } = meetingAgenda(m, data.items, dayKey(new Date()));
+      const { onAgenda, forMeeting, byPerson, nextTime, waiting } = meetingAgenda(m, data.items, dayKey(new Date()));
       const attendees = new Set(m.person_ids);
       body = (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">{t("Tick an item once it's handed over or discussed: what you hand over then waits on the person.")}</p>
-          <ItemList title={t("Agenda")} items={onAgenda} hide={["meeting"]} inMeeting data={data} onOpen={setOpen} onChanged={onChanged} />
+          {/* Collective points first, then each attendee's own. */}
+          <ItemList title={t("Agenda")} items={forMeeting} hide={["meeting"]} inMeeting data={data} onOpen={setOpen} onChanged={onChanged} />
+          {byPerson.map((g) => (
+            <ItemList
+              key={g.personId}
+              title={data.people.find((p) => p.id === g.personId)?.name}
+              items={g.items}
+              hide={["meeting", "person"]}
+              inMeeting
+              data={data}
+              onOpen={setOpen}
+              onChanged={onChanged}
+            />
+          ))}
           <ItemList title={t("To follow up")} items={waiting} hide={["meeting"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!onAgenda.length && !waiting.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
           <MeetingCapture meeting={m} data={data} onAdded={onChanged} />

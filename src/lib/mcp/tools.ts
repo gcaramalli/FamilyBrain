@@ -1144,14 +1144,16 @@ export function registerTools(server: McpServer) {
       if (meeting) {
         const m = findWork(w.meetings, meeting, "meeting");
         const today = workToday();
-        const { onAgenda, nextTime, waiting } = meetingAgenda(m, w.items, today);
+        const { forMeeting, byPerson, nextTime, waiting } = meetingAgenda(m, w.items, today);
         const attendees = new Set(m.person_ids);
         return text({
           meeting: m.name,
           day: m.weekday ? WEEKDAYS[m.weekday] : null,
           next_meeting: nextMeetingDate(m, today),
           attendees: names(m.person_ids),
-          agenda: out(onAgenda),
+          // Collective points first, then each attendee's own: present them in that order.
+          agenda: out(forMeeting),
+          agenda_by_person: byPerson.map((g) => ({ person: names([g.personId])[0], items: out(g.items) })),
           waiting_on_attendees: out(waiting),
           set_for_next_time: out(nextTime),
           ...done((i) => i.meeting_id === m.id || (!!i.person_id && attendees.has(i.person_id))),

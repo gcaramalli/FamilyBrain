@@ -81,7 +81,7 @@ Rules of thumb:
 - `work_people` / `work_projects` / `work_meetings` / `work_items` — the private **Work** space (`/work`, opened from a `work`
   tile): people at work (`role` boss/peer/team/other), projects (`person_ids`), recurring meetings (`weekday`, `person_ids` =
   attendees) and items (`kind` todo/give/discuss, `status` open → waiting (handed over) → done, optional person/project/meeting).
-  A person's page = their items + items on their projects; a meeting's agenda = its items + give/discuss items for its
+  A person's page = their items + items on their projects; a meeting's agenda = its own (collective) items first, then each attendee's give/discuss items under their name, for its
   attendees (`src/lib/work.ts`); `not_before` keeps an item off agendas until then ("for next week's meeting"), done items
   stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others. Owner-only RLS like `private_boards`. The one private part the connector reaches
   (`get_work` / `add_work_items` / `update_work_item` / `set_work_entry`), always filtered by the token owner's `profile_id`
