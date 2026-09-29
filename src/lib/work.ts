@@ -74,13 +74,20 @@ export function personItems(person: WorkPerson, items: WorkItem[], projects: Wor
 // A meeting's agenda on `today` (YYYY-MM-DD): what was put on it, what to hand
 // over to or discuss with the attendees, what they still owe (waiting), and
 // what was already set aside for next time (not_before in the future).
+// `forMeeting` = the points put on the meeting itself (collective), shown
+// first; `byPerson` = each attendee's own points, in attendee order.
 export function meetingAgenda(meeting: WorkMeeting, items: WorkItem[], today: string) {
   const attendees = new Set(meeting.person_ids);
   const forAttendee = (i: WorkItem) => !!i.person_id && attendees.has(i.person_id) && !i.meeting_id;
   const later = (i: WorkItem) => !!i.not_before && i.not_before > today;
   const candidate = (i: WorkItem) => i.status === "open" && (i.meeting_id === meeting.id || (forAttendee(i) && i.kind !== "todo"));
+  const onAgenda = items.filter((i) => candidate(i) && !later(i));
   return {
-    onAgenda: items.filter((i) => candidate(i) && !later(i)),
+    onAgenda,
+    forMeeting: onAgenda.filter((i) => i.meeting_id === meeting.id),
+    byPerson: meeting.person_ids
+      .map((personId) => ({ personId, items: onAgenda.filter((i) => i.meeting_id !== meeting.id && i.person_id === personId) }))
+      .filter((g) => g.items.length),
     nextTime: items.filter((i) => candidate(i) && later(i)),
     waiting: items.filter((i) => i.status === "waiting" && (i.meeting_id === meeting.id || forAttendee(i))),
   };
