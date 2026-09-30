@@ -8,7 +8,7 @@ import { EventForm, newEventDraft } from "@/components/event-form";
 import { EventRow } from "@/components/event-row";
 import { Sheet } from "@/components/sheet";
 import { addDays, dayKey, fmtDate, formatDayHeading, startOfDay } from "@/lib/dates";
-import { groupByDay, isMultiDay } from "@/lib/events";
+import { groupByDay } from "@/lib/events";
 import { fetchCalendar } from "@/lib/occasions";
 import { MODULES } from "@/lib/modules";
 import { careKind } from "@/lib/care";
@@ -235,11 +235,12 @@ export default function CalendarPage() {
 
       {mode === "week" && (
         <section className="card p-3">
-          <div className="mb-2 text-sm text-muted first-letter:uppercase">{t("trips & all-day")}</div>
+          <div className="mb-2 text-sm text-muted first-letter:uppercase">{t("Who has something")}</div>
           <div className="grid grid-cols-7 gap-1 text-center">
             {days.map((d) => {
               const k = dayKey(d);
-              const shown = (byDay.get(k) ?? []).filter((e) => e.all_day || isMultiDay(e));
+              // Everyone with something that day, timed or not (trips span their days).
+              const shown = byDay.get(k) ?? [];
               return (
                 <button
                   key={k}
