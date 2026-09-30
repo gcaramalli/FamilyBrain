@@ -713,4 +713,5 @@ export const fr: Record<string, string> = {
   "With the kids": "Avec les enfants",
   "Parents only": "Parents seuls",
   "No meals here in the last two weeks.": "Aucun repas ici ces deux dernières semaines.",
+  "Couldn't delete it. Try again.": "Impossible de supprimer. Réessaie.",
 };
