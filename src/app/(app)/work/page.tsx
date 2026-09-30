@@ -31,9 +31,16 @@ const compact = (name: string) => name.replace(/\s+/g, "");
 const clean = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export default function WorkPage() {
-  const { supabase, t } = useFamily();
+  const { supabase, profile, t } = useFamily();
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState<Tab>("me");
+  // Tabs this account doesn't use (Me always stays). Saved on the profile.
+  const [hidden, setHidden] = useState<string[]>(profile.work_hidden_tabs ?? []);
+  async function toggleTab(id: Tab) {
+    const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
+    setHidden(next);
+    await supabase.from("profiles").update({ work_hidden_tabs: next }).eq("id", profile.id);
+  }
   const [open, setOpen] = useState<Open | null>(null);
 
   const load = useCallback(async () => {
@@ -58,13 +65,16 @@ export default function WorkPage() {
     load();
   }, [load]);
 
-  const tabs: { id: Tab; label: string }[] = [
+  const allTabs: { id: Tab; label: string }[] = [
     { id: "me", label: t("Me") },
     { id: "people", label: t("People") },
     { id: "projects", label: t("Projects") },
     { id: "meetings", label: t("Meetings") },
   ];
-  const newWhat = tab === "projects" ? "project" : tab === "meetings" ? "meeting" : "person";
+  const tabs = allTabs.filter((x) => !hidden.includes(x.id));
+  // A tab hidden while open falls back to Me.
+  const current: Tab = hidden.includes(tab) ? "me" : tab;
+  const newWhat = current === "projects" ? "project" : current === "meetings" ? "meeting" : "person";
 
   return (
     <div className="flex flex-col gap-5">
@@ -72,29 +82,44 @@ export default function WorkPage() {
         title={t("Work")}
         module="work"
         back="/me"
-        action={tab !== "me" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
+        action={current !== "me" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
       >
-        <div className="grid grid-cols-4 rounded-full bg-accent-soft p-1 text-sm">
+        {tabs.length > 1 && (
+        <div className="grid rounded-full bg-accent-soft p-1 text-sm" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map((x) => (
             <button
               key={x.id}
               onClick={() => setTab(x.id)}
-              className={`min-h-9 truncate rounded-full px-1 ${tab === x.id ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
+              className={`min-h-9 truncate rounded-full px-1 ${current === x.id ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
             >
               {x.label}
             </button>
           ))}
         </div>
+        )}
       </PageHeader>
 
       {data && (
         <>
           <Capture data={data} onAdded={load} />
-          {tab === "me" && <MeTab data={data} onOpen={setOpen} onChanged={load} />}
-          {tab === "people" && <PeopleTab data={data} onOpen={setOpen} />}
-          {tab === "projects" && <ProjectsTab data={data} onOpen={setOpen} />}
-          {tab === "meetings" && <MeetingsTab data={data} onOpen={setOpen} />}
+          {current === "me" && <MeTab data={data} onOpen={setOpen} onChanged={load} />}
+          {current === "people" && <PeopleTab data={data} onOpen={setOpen} />}
+          {current === "projects" && <ProjectsTab data={data} onOpen={setOpen} />}
+          {current === "meetings" && <MeetingsTab data={data} onOpen={setOpen} />}
           <Sheets data={data} open={open} setOpen={setOpen} onChanged={load} />
+          {current === "me" && (
+            <section className="flex flex-col gap-2 border-t border-border pt-3">
+              <h3 className="eyebrow">{t("Tabs")}</h3>
+              <div className="flex flex-wrap gap-2">
+                {allTabs.filter((x) => x.id !== "me").map((x) => (
+                  <button key={x.id} onClick={() => toggleTab(x.id)} aria-pressed={!hidden.includes(x.id)} className={`chip-toggle ${hidden.includes(x.id) ? "" : "chip-on"}`}>
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted">{t("Hide what you don't use. Nothing is deleted.")}</p>
+            </section>
+          )}
         </>
       )}
     </div>

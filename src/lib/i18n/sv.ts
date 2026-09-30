@@ -714,4 +714,6 @@ export const sv: Record<string, string> = {
   "Parents only": "Bara föräldrarna",
   "No meals here in the last two weeks.": "Inga måltider här de senaste två veckorna.",
   "Couldn't delete it. Try again.": "Gick inte att ta bort. Försök igen.",
+  "Tabs": "Flikar",
+  "Hide what you don't use. Nothing is deleted.": "Dölj det du inte använder. Inget raderas.",
 };
