@@ -43,6 +43,8 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [ ] Drafted message in the right language in the reminder (needs `ANTHROPIC_API_KEY`)
 - [x] Connector tools `get_occasions`, `add_occasion`
 - [ ] Connector tools `remember`, `recall`, `get_person`
+- [x] Travels: countries each of us has been to, world map by person (Today tile), connector `get_travels` / `add_countries`
+- [x] Travels timeline: trips by month with who went (Me → My trips), feeds the map; connector `add_trips`
 - [ ] Charlie's measurements and growth curve
 - [x] Kid tab as tiles: preschool, sleep (naps, nights, wakings → Claude suggests bedtime), wardrobe (sizes, has / to buy,
       season essentials), food (the kid's meals, loves / refuses), plus the family's own list and note tiles

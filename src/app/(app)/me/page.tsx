@@ -26,6 +26,7 @@ export default function MePage() {
 
       <nav className="grid grid-cols-2 gap-3">
         <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
+        <HubTile href="/travels/timeline" module="travels" title={t("My trips")} sub={t("Where, when, with whom")} />
       </nav>
 
     </div>
