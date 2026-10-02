@@ -17,6 +17,8 @@
   --edge: transparent;
   /* The selected pill of a segmented control. */
   --pill: #ffffff;
+  /* Countries nobody has been to yet (Travels map). */
+  --map-land: #dedad1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,6 +36,7 @@
     --lift: none;
     --edge: transparent;
     --pill: #33405a;
+    --map-land: #2c3749;
   }
 }
 

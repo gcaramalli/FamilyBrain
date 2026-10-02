@@ -228,3 +228,14 @@ export type KidSleep = {
 
 export type KidBoard = { id: string; kid_id: string; title: string; emoji: string; kind: "list" | "note"; body: string; position: number; updated_at: string };
 export type KidItem = { id: string; board_id: string; title: string; done: boolean; created_at: string };
+
+// A country one member of the family has been to (Travels).
+export type VisitedCountry = {
+  id: string;
+  member_id: string;
+  country: string; // ISO 3166-1 alpha-2
+  first_year: number | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};

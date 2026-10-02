@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { mcpContext, type McpContext } from "./context";
 import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { familyBirthdays } from "@/lib/occasions";
+import { countryName, findCountry } from "@/lib/countries";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
@@ -50,6 +51,8 @@ Routing:
 - What the kid ate and how it went ("Charlie refused the fish"): log_meal with who = the kid and reaction. Ideas for the
   kid's meals: get_meals with who = the kid (loves / refuses) and suggest what fits their age and balances their week.
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
+- Countries we've been to ("Jenny has been to Japan", "where haven't we been in Europe?", trip ideas): get_travels /
+  add_countries (the Travels map in the app). Pass countries as ISO codes or names.
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
 - Birthdays of the family's own members (parents, kids): set_birthdate (they show in the calendar and the others are
   reminded the evening before). Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
@@ -1547,6 +1550,76 @@ export function registerTools(server: McpServer) {
         if (missing.length) done.push(`not on the to-buy list: ${missing.join(", ")} (add them with status "have" if needed)`);
       }
       return text(done.length ? `${kid.name}: ${done.join("; ")}.` : "Nothing to change.");
+    },
+  );
+
+  server.registerTool(
+    "get_travels",
+    {
+      title: "Countries we've been to",
+      description: "Every family member's visited countries (Travels map), with the first year and a note when known, and the ones all of us have been to.",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const db = createAdminClient();
+      const [{ data: people }, { data: rows, error }] = await Promise.all([
+        db.from("members").select("id, name").eq("family_id", familyId()).order("created_at"),
+        db.from("visited_countries").select("member_id, country, first_year, note").eq("family_id", familyId()),
+      ]);
+      if (error) throw new Error(error.message);
+      const all = rows ?? [];
+      const byPerson = (people ?? []).map((p) => ({
+        name: p.name,
+        countries: all
+          .filter((r) => r.member_id === p.id)
+          .map((r) => ({ code: r.country, name: countryName(r.country), ...(r.first_year ? { first_year: r.first_year } : {}), ...(r.note ? { note: r.note } : {}) }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+      const codes = [...new Set(all.map((r) => r.country))];
+      const together = codes.filter((c) => (people ?? []).every((p) => all.some((r) => r.member_id === p.id && r.country === c)));
+      return text({ family_total: codes.length, people: byPerson, everyone_has_been: together.map((c) => countryName(c)) });
+    },
+  );
+
+  server.registerTool(
+    "add_countries",
+    {
+      title: "Add countries we've been to",
+      description: "Mark countries as visited by one or more family members (or remove them, only when asked). Countries: ISO codes or names in any language.",
+      inputSchema: z.object({
+        who: z.array(z.string()).min(1).describe("First names of the family members who went"),
+        countries: z.array(z.string().min(1)).min(1).max(250),
+        first_year: z.number().int().min(1900).max(2100).optional().describe("First time there, when it is one trip"),
+        note: z.string().max(500).optional(),
+        remove: z.boolean().optional().describe("Remove these countries instead (only when explicitly asked)"),
+      }),
+    },
+    async ({ who, countries, first_year, note, remove }) => {
+      const db = createAdminClient();
+      const memberIds = await Promise.all(who.map((n) => memberIdByName(n)));
+      const codes = [...new Set(countries.map((c) => findCountry(c)).filter((c): c is string => !!c))];
+      const unknown = countries.filter((c) => !findCountry(c));
+      if (remove) {
+        const { error } = await db.from("visited_countries").delete().eq("family_id", familyId()).in("member_id", memberIds as string[]).in("country", codes);
+        if (error) throw new Error(error.message);
+        return text({ removed: codes.map((c) => countryName(c)), for: who, not_recognised: unknown });
+      }
+      const rows = memberIds.flatMap((member_id) =>
+        codes.map((country) => ({
+          family_id: familyId(),
+          member_id,
+          country,
+          created_by: createdBy(),
+          ...(first_year ? { first_year } : {}),
+          ...(note ? { note } : {}),
+        })),
+      );
+      // A year or a note updates countries already ticked; otherwise they are left as they are.
+      const { error } = await db
+        .from("visited_countries")
+        .upsert(rows, { onConflict: "member_id,country", ignoreDuplicates: !first_year && !note });
+      if (error) throw new Error(error.message);
+      return text({ added: codes.map((c) => countryName(c)), for: who, not_recognised: unknown });
     },
   );
 }
