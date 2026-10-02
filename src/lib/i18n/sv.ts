@@ -713,7 +713,6 @@ export const sv: Record<string, string> = {
   "With the kids": "Med barnen",
   "Parents only": "Bara föräldrarna",
   "No meals here in the last two weeks.": "Inga måltider här de senaste två veckorna.",
-  "Shared with everyone in the family.": "Delas med hela familjen.",
   "Papers": "Papper",
   "Contracts, insurance, receipts, IDs": "Avtal, försäkringar, kvitton, ID-handlingar",
   "A private paper": "Ett privat papper",
@@ -803,4 +802,5 @@ export const sv: Record<string, string> = {
   "per quarter": "per kvartal",
   "per year": "per år",
   "once": "en gång",
+  "Home": "Hem",
 };

@@ -713,7 +713,6 @@ export const fr: Record<string, string> = {
   "With the kids": "Avec les enfants",
   "Parents only": "Parents seuls",
   "No meals here in the last two weeks.": "Aucun repas ici ces deux dernières semaines.",
-  "Shared with everyone in the family.": "Partagé avec toute la famille.",
   "Papers": "Papiers",
   "Contracts, insurance, receipts, IDs": "Contrats, assurances, reçus, papiers d'identité",
   "A private paper": "Un papier privé",
@@ -803,4 +802,5 @@ export const fr: Record<string, string> = {
   "per quarter": "par trimestre",
   "per year": "par an",
   "once": "une fois",
+  "Home": "Accueil",
 };

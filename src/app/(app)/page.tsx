@@ -122,6 +122,8 @@ export default function TodayPage() {
       <SoonCard occasions={occasions} meId={me?.id} />
       <PapersCard dates={paperDates} />
 
+      {/* Home is also where everything the family shares lives; Me is only mine. */}
+      <h2 className="h2 -mb-2">{t("Family")}</h2>
       <nav className="grid grid-cols-2 gap-3">
         <HubTile
           href="/todo"
@@ -140,6 +142,7 @@ export default function TodayPage() {
         />
         <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
         <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
+        <HubTile href="/papers" module="papers" title={t("Papers")} sub={t("Contracts, insurance, receipts, IDs")} />
       </nav>
     </div>
   );

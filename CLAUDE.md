@@ -128,8 +128,8 @@ Rules of thumb:
   `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
-- Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
-  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, then the family's `/brain` and `/papers`).
+- Navigation: five tabs, one job each — Home (`/`: today at the top, then the family's shared tiles: to-do, shopping, meals, `/brain`, `/papers`), Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
+  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: only what is private — private tiles, `/work`).
   Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
   give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what

@@ -178,7 +178,7 @@ export default function PapersPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader module="papers" back="/me" title={t("Papers")} action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Add")}</button>} />
+      <PageHeader module="papers" back="/" backLabel={t("Home")} title={t("Papers")} action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Add")}</button>} />
       <div className="grid grid-cols-2 rounded-full bg-accent-soft p-1 text-sm">
         {(["family", "mine"] as const).map((x) => (
           <button key={x} onClick={() => setScope(x)} className={`flex min-h-9 items-center justify-center gap-1.5 rounded-full ${scope === x ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}>
