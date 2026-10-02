@@ -333,7 +333,6 @@ export const fr: Record<string, string> = {
   "admin": "admin",
   "can": "peut",
   "can't": "ne peut pas",
-  "trips & all-day": "voyages et journées entières",
   "e.g. 2 or 1 kg": "ex. 2 ou 1 kg",
   "e.g. Förskolan Solrosen, Hantverkargatan 3": "ex. Förskolan Solrosen, Hantverkargatan 3",
   "e.g. Salmon, potatoes, green beans": "ex. Saumon, pommes de terre, haricots verts",
@@ -760,4 +759,8 @@ export const fr: Record<string, string> = {
   "Map": "Carte",
   "Timeline": "Chronologie",
   "since {when}": "depuis {when}",
+  "Couldn't delete it. Try again.": "Impossible de supprimer. Réessaie.",
+  "Tabs": "Onglets",
+  "Hide what you don't use. Nothing is deleted.": "Masque ce que tu n'utilises pas. Rien n'est supprimé.",
+  "Who has something": "Qui a quelque chose",
 };

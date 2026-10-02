@@ -333,7 +333,6 @@ export const sv: Record<string, string> = {
   "admin": "admin",
   "can": "kan",
   "can't": "kan inte",
-  "trips & all-day": "resor och heldagar",
   "e.g. 2 or 1 kg": "t.ex. 2 eller 1 kg",
   "e.g. Förskolan Solrosen, Hantverkargatan 3": "t.ex. Förskolan Solrosen, Hantverkargatan 3",
   "e.g. Salmon, potatoes, green beans": "t.ex. Lax, potatis, gröna bönor",
@@ -760,4 +759,8 @@ export const sv: Record<string, string> = {
   "Map": "Karta",
   "Timeline": "Tidslinje",
   "since {when}": "sedan {when}",
+  "Couldn't delete it. Try again.": "Gick inte att ta bort. Försök igen.",
+  "Tabs": "Flikar",
+  "Hide what you don't use. Nothing is deleted.": "Dölj det du inte använder. Inget raderas.",
+  "Who has something": "Vem har något",
 };

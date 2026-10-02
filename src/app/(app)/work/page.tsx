@@ -31,9 +31,16 @@ const compact = (name: string) => name.replace(/\s+/g, "");
 const clean = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 export default function WorkPage() {
-  const { supabase, t } = useFamily();
+  const { supabase, profile, t } = useFamily();
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState<Tab>("me");
+  // Tabs this account doesn't use (Me always stays). Saved on the profile.
+  const [hidden, setHidden] = useState<string[]>(profile.work_hidden_tabs ?? []);
+  async function toggleTab(id: Tab) {
+    const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
+    setHidden(next);
+    await supabase.from("profiles").update({ work_hidden_tabs: next }).eq("id", profile.id);
+  }
   const [open, setOpen] = useState<Open | null>(null);
 
   const load = useCallback(async () => {
@@ -58,13 +65,16 @@ export default function WorkPage() {
     load();
   }, [load]);
 
-  const tabs: { id: Tab; label: string }[] = [
+  const allTabs: { id: Tab; label: string }[] = [
     { id: "me", label: t("Me") },
     { id: "people", label: t("People") },
     { id: "projects", label: t("Projects") },
     { id: "meetings", label: t("Meetings") },
   ];
-  const newWhat = tab === "projects" ? "project" : tab === "meetings" ? "meeting" : "person";
+  const tabs = allTabs.filter((x) => !hidden.includes(x.id));
+  // A tab hidden while open falls back to Me.
+  const current: Tab = hidden.includes(tab) ? "me" : tab;
+  const newWhat = current === "projects" ? "project" : current === "meetings" ? "meeting" : "person";
 
   return (
     <div className="flex flex-col gap-5">
@@ -72,29 +82,44 @@ export default function WorkPage() {
         title={t("Work")}
         module="work"
         back="/me"
-        action={tab !== "me" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
+        action={current !== "me" && <button className="btn" onClick={() => setOpen({ type: "new", what: newWhat })}>+ {newWhat === "project" ? t("Project") : newWhat === "meeting" ? t("Meeting") : t("Person")}</button>}
       >
-        <div className="grid grid-cols-4 rounded-full bg-accent-soft p-1 text-sm">
+        {tabs.length > 1 && (
+        <div className="grid rounded-full bg-accent-soft p-1 text-sm" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map((x) => (
             <button
               key={x.id}
               onClick={() => setTab(x.id)}
-              className={`min-h-9 truncate rounded-full px-1 ${tab === x.id ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
+              className={`min-h-9 truncate rounded-full px-1 ${current === x.id ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
             >
               {x.label}
             </button>
           ))}
         </div>
+        )}
       </PageHeader>
 
       {data && (
         <>
           <Capture data={data} onAdded={load} />
-          {tab === "me" && <MeTab data={data} onOpen={setOpen} onChanged={load} />}
-          {tab === "people" && <PeopleTab data={data} onOpen={setOpen} />}
-          {tab === "projects" && <ProjectsTab data={data} onOpen={setOpen} />}
-          {tab === "meetings" && <MeetingsTab data={data} onOpen={setOpen} />}
+          {current === "me" && <MeTab data={data} onOpen={setOpen} onChanged={load} />}
+          {current === "people" && <PeopleTab data={data} onOpen={setOpen} />}
+          {current === "projects" && <ProjectsTab data={data} onOpen={setOpen} />}
+          {current === "meetings" && <MeetingsTab data={data} onOpen={setOpen} />}
           <Sheets data={data} open={open} setOpen={setOpen} onChanged={load} />
+          {current === "me" && (
+            <section className="flex flex-col gap-2 border-t border-border pt-3">
+              <h3 className="eyebrow">{t("Tabs")}</h3>
+              <div className="flex flex-wrap gap-2">
+                {allTabs.filter((x) => x.id !== "me").map((x) => (
+                  <button key={x.id} onClick={() => toggleTab(x.id)} aria-pressed={!hidden.includes(x.id)} className={`chip-toggle ${hidden.includes(x.id) ? "" : "chip-on"}`}>
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted">{t("Hide what you don't use. Nothing is deleted.")}</p>
+            </section>
+          )}
         </>
       )}
     </div>
@@ -438,6 +463,7 @@ function PeoplePicker({ people, value, onChange }: { people: WorkPerson[]; value
 function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | null; setOpen: (o: Open | null) => void; onChanged: () => void }) {
   const { t } = useFamily();
   const close = () => setOpen(null);
+  const del = useDeleteEntity(data, () => (onChanged(), close()));
   let title = "";
   let body: React.ReactNode = null;
   if (open?.type === "new") {
@@ -460,8 +486,8 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
           <ItemList title={t("On their projects")} items={viaProjects} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!direct.length && !viaProjects.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
           <History items={data.done.filter((i) => i.person_id === p.id)} hide={["person"]} data={data} onOpen={setOpen} onChanged={onChanged} />
-          <Details>
-            <EntityForm key={p.id} what="person" data={data} person={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details name={p.name} onDelete={() => del("person", p.id)}>
+            <EntityForm key={p.id} what="person" data={data} person={p} onDone={() => onChanged()} />
           </Details>
         </div>
       );
@@ -485,8 +511,8 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
           <ItemList items={items} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
           {!items.length && <p className="text-sm text-muted">{t("Nothing for now.")}</p>}
           <History items={data.done.filter((i) => i.project_id === p.id)} hide={["project"]} data={data} onOpen={setOpen} onChanged={onChanged} />
-          <Details>
-            <EntityForm key={p.id} what="project" data={data} project={p} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details name={p.name} onDelete={() => del("project", p.id)}>
+            <EntityForm key={p.id} what="project" data={data} project={p} onDone={() => onChanged()} />
           </Details>
         </div>
       );
@@ -525,8 +551,8 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
             onOpen={setOpen}
             onChanged={onChanged}
           />
-          <Details>
-            <EntityForm key={m.id} what="meeting" data={data} meeting={m} onDone={(id) => (onChanged(), id ? undefined : close())} />
+          <Details name={m.name} onDelete={() => del("meeting", m.id)}>
+            <EntityForm key={m.id} what="meeting" data={data} meeting={m} onDone={() => onChanged()} />
           </Details>
         </div>
       );
@@ -545,8 +571,8 @@ function Sheets({ data, open, setOpen, onChanged }: { data: Data; open: Open | n
   );
 }
 
-// Create or edit a person, project or meeting. onDone(id) after saving,
-// onDone(null) after deleting.
+// Create or edit a person, project or meeting; onDone(id) after saving
+// (deleting is useDeleteEntity, next to "Edit details").
 function EntityForm({
   what,
   data,
@@ -590,23 +616,8 @@ function EntityForm({
     }
   }
 
-  async function remove() {
-    if (!existing) return;
-    // Their items stay, unsorted; drop them from projects and meetings too.
-    if (what === "person") {
-      for (const p of [...data.projects, ...data.meetings].filter((x) => x.person_ids.includes(existing.id))) {
-        await supabase
-          .from("weekday" in p ? "work_meetings" : "work_projects")
-          .update({ person_ids: p.person_ids.filter((x) => x !== existing.id) })
-          .eq("id", p.id);
-      }
-    }
-    await supabase.from(table).delete().eq("id", existing.id);
-    onDone(null);
-  }
-
   return (
-    <form onSubmit={save} className={`flex flex-col gap-3 ${existing ? "border-t border-border pt-4" : ""}`}>
+    <form onSubmit={save} className="flex flex-col gap-3">
       <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Name")} autoFocus={!existing} maxLength={80} />
       {what === "person" && (
         <div className="flex flex-wrap gap-2">
@@ -650,11 +661,6 @@ function EntityForm({
         </label>
       )}
       <button className="btn" disabled={!name.trim()}>{existing ? t("Save") : t("Create")}</button>
-      {existing && (
-        <ConfirmButton className="self-start text-sm" armed={t("Delete {name}?", { name: existing.name })} onConfirm={remove}>
-          {t("Delete")}
-        </ConfirmButton>
-      )}
     </form>
   );
 }
@@ -819,15 +825,47 @@ function MeetingCapture({ meeting, data, onAdded }: { meeting: WorkMeeting; data
 }
 
 // A person's, project's or meeting's own settings, folded under its items.
-function Details({ children }: { children: React.ReactNode }) {
+// Bottom of a person / project / meeting sheet: edit (folded) and delete,
+// both always in sight.
+function Details({ children, onDelete, name }: { children: React.ReactNode; onDelete: () => Promise<void>; name: string }) {
   const { t } = useFamily();
   const [open, setOpen] = useState(false);
-  return open ? (
-    <>{children}</>
-  ) : (
-    <button className="btn-ghost self-start" onClick={() => setOpen(true)}>
-      <Pencil size={14} />
-      {t("Edit details")}
-    </button>
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-3">
+      <div className="flex items-center justify-between gap-3">
+        {!open && (
+          <button className="btn-ghost" onClick={() => setOpen(true)}>
+            <Pencil size={14} />
+            {t("Edit details")}
+          </button>
+        )}
+        <ConfirmButton className="ml-auto text-sm" armed={t("Delete {name}?", { name })} onConfirm={onDelete}>
+          {t("Delete")}
+        </ConfirmButton>
+      </div>
+      {open && children}
+    </div>
   );
+}
+
+// Deleting a person, project or meeting keeps its items (they become
+// unsorted); a person is also taken off the projects and meetings they were on.
+function useDeleteEntity(data: Data, onDone: () => void) {
+  const { supabase, t } = useFamily();
+  const toast = useToast();
+  return async (what: "person" | "project" | "meeting", id: string) => {
+    if (what === "person") {
+      for (const p of [...data.projects, ...data.meetings].filter((x) => x.person_ids.includes(id))) {
+        await supabase
+          .from("weekday" in p ? "work_meetings" : "work_projects")
+          .update({ person_ids: p.person_ids.filter((x) => x !== id) })
+          .eq("id", p.id);
+      }
+    }
+    const table = what === "person" ? "work_people" : what === "project" ? "work_projects" : "work_meetings";
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (error) return toast(t("Couldn't delete it. Try again."));
+    toast(t("Deleted"));
+    onDone();
+  };
 }

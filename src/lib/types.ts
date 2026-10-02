@@ -10,6 +10,7 @@ export type Profile = {
   role: Role;
   color: string;
   locale: "en" | "fr" | "sv";
+  work_hidden_tabs?: string[]; // Work tabs this account hides (0021)
 };
 
 export type Member = {
