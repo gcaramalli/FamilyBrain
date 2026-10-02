@@ -95,6 +95,21 @@ export function CalendarSegments() {
   );
 }
 
+// Travels: the family map and checklist, and each person's timeline of trips.
+export function TravelsHeader({ back, backLabel, action }: { back: string; backLabel: string; action?: React.ReactNode }) {
+  const { t } = useFamily();
+  return (
+    <PageHeader module="travels" back={back} backLabel={backLabel} title={t("Travels")} action={action}>
+      <Segments
+        items={[
+          { href: "/travels", label: t("Map") },
+          { href: "/travels/timeline", label: t("Timeline") },
+        ]}
+      />
+    </PageHeader>
+  );
+}
+
 // Hembrain admin (super admins): usage across families, feedback, AI budgets.
 export function StatsHeader() {
   const { t } = useFamily();

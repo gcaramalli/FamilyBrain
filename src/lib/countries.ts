@@ -82,3 +82,14 @@ export function whoWent(rows: { country: string; member_id: string }[]) {
   for (const r of rows) who.set(r.country, [...(who.get(r.country) ?? []), r.member_id]);
   return who;
 }
+
+// "Jul 2024", "Jul – Aug 2024", "Aug 2010 – May 2011", "since Sep 2013".
+export function tripWhen(trip: { start_month: string | null; end_month: string | null; lived: boolean }, locale: string, t: (k: string, v?: Record<string, string>) => string) {
+  if (!trip.start_month) return "";
+  const at = (s: string, year = true) => new Date(`${s}T12:00:00`).toLocaleDateString(locale, year ? { month: "short", year: "numeric" } : { month: "short" });
+  const start = trip.start_month;
+  const end = trip.end_month;
+  if (!end) return trip.lived ? t("since {when}", { when: at(start) }) : at(start);
+  if (end === start) return at(start);
+  return start.slice(0, 4) === end.slice(0, 4) ? `${at(start, false)} – ${at(end)}` : `${at(start)} – ${at(end)}`;
+}

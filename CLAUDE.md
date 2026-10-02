@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0022 are applied (0021 is on the `claude/settings-menu-reorganize-3zo3ur` branch, not yet on main). Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0023 are applied (0021 is on the `claude/settings-menu-reorganize-3zo3ur` branch, not yet on main). Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -96,6 +96,10 @@ Rules of thumb:
   `Intl.DisplayNames` and pasted lists in any language matched by `parseCountries` (`src/lib/countries.ts`). Map outlines are
   pre-projected in `src/lib/world-map.json` (built by `scripts/gen-world-map.mjs`, no map library), drawn by `WorldMap`:
   each person's colour, stripes when several of us went. Tile on Today, page `/travels`; connector `get_travels` / `add_countries`.
+- `trips` — Travels timeline (`/travels/timeline`, "My trips" tile on Me, filtered on me by default but family-visible):
+  `country`, `start_month` / `end_month` (first of the month; no start = year unknown), `lived`, `note`, `member_ids` (who went).
+  A trigger (`private.trip_ticks_country`) ticks the country in `visited_countries` for everyone who went and keeps
+  `first_year` to the earliest trip; deleting a trip leaves the tick. Connector `add_trips`; `get_travels` returns the trips too.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
 - `occasions` — dates celebrated every year (weddings attended, friends' / relatives' birthdays): `date` = original day,

@@ -239,3 +239,17 @@ export type VisitedCountry = {
   created_by: string | null;
   created_at: string;
 };
+
+// One trip, or a stretch lived somewhere (Travels → Timeline). Months are the
+// first day of the month; no start = year unknown.
+export type Trip = {
+  id: string;
+  country: string;
+  start_month: string | null;
+  end_month: string | null;
+  lived: boolean;
+  note: string | null;
+  member_ids: string[];
+  created_by: string | null;
+  created_at: string;
+};

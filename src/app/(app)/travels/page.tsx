@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFamily } from "@/components/family-context";
-import { PageHeader } from "@/components/page-header";
+import { TravelsHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { WorldMap } from "@/components/world-map";
@@ -52,13 +52,7 @@ export default function TravelsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        module="travels"
-        back="/"
-        backLabel={t("Today")}
-        title={t("Travels")}
-        action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Countries")}</button>}
-      />
+      <TravelsHeader back="/" backLabel={t("Today")} action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Countries")}</button>} />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button className={`chip-toggle ${focus === null ? "chip-on" : ""}`} onClick={() => setFocus(null)}>
