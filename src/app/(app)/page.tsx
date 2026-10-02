@@ -13,7 +13,8 @@ import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
-import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, RestockSuggestion } from "@/lib/types";
+import { deadlineText, inDays, upcomingDeadlines, type Deadline } from "@/lib/papers";
+import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
 
 export default function TodayPage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
@@ -24,6 +25,7 @@ export default function TodayPage() {
   const [todoCount, setTodoCount] = useState<number | null>(null);
   const [dueTodos, setDueTodos] = useState<ListItem[]>([]);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
+  const [paperDates, setPaperDates] = useState<Deadline[]>([]);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -62,6 +64,11 @@ export default function TodayPage() {
       .select("*")
       .order("next_due_on")
       .then(({ data }) => setRestock(((data ?? []) as RestockSuggestion[]).filter((r) => daysUntil(r.next_due_on) <= 3)));
+    supabase
+      .from("papers")
+      .select("*")
+      .eq("ended", false)
+      .then(({ data }) => setPaperDates(upcomingDeadlines((data ?? []) as Paper[], 30)));
     return () => {
       supabase.removeChannel(channel);
     };
@@ -113,6 +120,7 @@ export default function TodayPage() {
       </section>
 
       <SoonCard occasions={occasions} meId={me?.id} />
+      <PapersCard dates={paperDates} />
 
       <nav className="grid grid-cols-2 gap-3">
         <HubTile
@@ -197,6 +205,27 @@ function SoonCard({ occasions, meId }: { occasions: Occasion[]; meId?: string })
         <p key={o.id} className="text-sm">
           {OCCASION_EMOJI[o.kind]} <span className="font-medium">{o.title}</span>{" "}
           <span className="text-muted">· {occasionLabel(t, o.kind, years)} · {whenLabel(t, daysAway(day), day)}</span>
+        </p>
+      ))}
+    </Link>
+  );
+}
+
+// Papers with a deadline in the next 30 days (last day to cancel, an ID
+// expiring). My private ones are not named here: someone may be looking.
+function PapersCard({ dates }: { dates: Deadline[] }) {
+  const { t } = useFamily();
+  if (!dates.length) return null;
+  return (
+    <Link href="/papers" className="card flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">{t("Papers")}</h2>
+        <span className="text-muted">→</span>
+      </div>
+      {dates.map((d) => (
+        <p key={`${d.paper.id}-${d.kind}`} className="text-sm">
+          <span className="font-medium">{deadlineText(t, d, d.paper.profile_id ? t("A private paper") : d.paper.title)}</span>{" "}
+          <span className="text-muted">· {inDays(t, d.days)}</span>
         </p>
       ))}
     </Link>

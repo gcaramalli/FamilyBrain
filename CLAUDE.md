@@ -8,12 +8,12 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0020 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0021 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
 Preferred: the **Hembrain connector** (`/api/mcp` + bearer header, tools in `src/lib/mcp/tools.ts`) for
-the calendar, lists, purchases, recipes and notes (event times are passed as local Stockholm time, see `src/lib/mcp/time.ts`).
+the calendar, lists, purchases, recipes, notes and papers (event times are passed as local Stockholm time, see `src/lib/mcp/time.ts`).
 Setup and routing prompt: `docs/claude-setup.md`.
 
 Fallback, for maintenance only (full admin access — avoid for day-to-day use): raw SQL via the Supabase connector.
@@ -92,6 +92,19 @@ Rules of thumb:
   `src/lib/ai-budget.ts`; only super admins write it) and `ai_usage` (one row per in-app Claude call with tokens and
   `cost_usd`, written with the service role by `extract()` in `src/lib/ai.ts`, which refuses a call once the month's
   spend reaches the cap → HTTP 402). Admin view: `/stats/ai` via `hembrain_ai_usage()`. The connector costs nothing here.
+- `papers` — contracts, insurance, receipts kept for the warranty, IDs (Me → Papers, `/papers`): `category` (ids in
+  `src/lib/papers.ts`), `provider`, `member_ids` (who it covers, empty = household), `amount` + `period`, `renews_on` +
+  `notice_days` (last day to cancel, rolled forward by period in `nextRenewal()`; monthly contracts get no deadlines),
+  `expires_on`, `warranty_until`, `summary`, `details` (jsonb of key terms), `ended`. `profile_id` null = the family's,
+  set = private to that account (RLS). The document goes to the private `papers` storage bucket at
+  `<family_id>/<paper_id>/<file>` (storage policies check the paper row is visible), read through signed URLs.
+  Deadlines in the next 30 days show on Today (private ones unnamed) and in the evening push 30/7/1 days ahead.
+  In-app "photo or PDF" reading = `/api/ai/paper` (Haiku, metered). Connector: `get_papers` (with `review` for the yearly
+  review), `add_paper`, `update_paper`; files can't go through the connector.
+- Locked tiles: `private_boards.locked` + a per-account code (4–8 digits) hashed in `private.pins`, only reached through
+  `private_pin_status/set/check/clear()` (5 wrong → 5 min wait). `src/components/pin-lock.tsx`: `usePin`, `PinGate`,
+  `PinSheet`; unlocked state is in memory and relocks after a minute in the background. Private papers are always behind
+  the code when one is set. A curtain for a shared phone, not encryption: RLS already hides these rows from other accounts.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
 - `occasions` — dates celebrated every year (weddings attended, friends' / relatives' birthdays): `date` = original day,
@@ -116,7 +129,7 @@ Rules of thumb:
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
 - Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
-  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, `/work`, `/brain`).
+  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, then the family's `/brain` and `/papers`).
   Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
   give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what

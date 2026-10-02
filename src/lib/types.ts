@@ -166,6 +166,8 @@ export type PrivateBoard = {
   kind: "list" | "note" | "gifts" | "work";
   body: string;
   position: number;
+  // Behind the account's code (private_pin_*), when one is set.
+  locked: boolean;
   updated_at: string;
 };
 
@@ -228,3 +230,32 @@ export type KidSleep = {
 
 export type KidBoard = { id: string; kid_id: string; title: string; emoji: string; kind: "list" | "note"; body: string; position: number; updated_at: string };
 export type KidItem = { id: string; board_id: string; title: string; done: boolean; created_at: string };
+
+// A contract, insurance, warranty receipt or ID (Papers). profile_id null =
+// the family's; set = private to that account.
+export type Paper = {
+  id: string;
+  family_id: string;
+  profile_id: string | null;
+  category: string;
+  title: string;
+  provider: string | null;
+  reference: string | null;
+  member_ids: string[];
+  amount: number | null;
+  currency: string;
+  period: "month" | "quarter" | "year" | "once" | null;
+  starts_on: string | null;
+  renews_on: string | null;
+  notice_days: number | null;
+  expires_on: string | null;
+  warranty_until: string | null;
+  summary: string | null;
+  details: Record<string, string>;
+  file_path: string | null;
+  file_name: string | null;
+  ended: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};

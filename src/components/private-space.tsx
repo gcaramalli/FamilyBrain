@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { Lock, LockOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFamily } from "@/components/family-context";
+import { PinPad, PinSheet, usePin } from "@/components/pin-lock";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import type { PrivateBoard, PrivateItem } from "@/lib/types";
@@ -33,6 +34,9 @@ export function PrivateSpace() {
   const [workOpen, setWorkOpen] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState<Draft | null>(null);
+  const [settings, setSettings] = useState(false);
+  const [asking, setAsking] = useState<(() => void) | null>(null);
+  const pin = usePin();
 
   const load = useCallback(async () => {
     const [b, i, w] = await Promise.all([
@@ -74,6 +78,19 @@ export function PrivateSpace() {
     });
   }
 
+  // A locked tile asks for the code first (when a code is set).
+  const isLocked = (b: PrivateBoard) => b.locked && pin.hasPin === true;
+  function openTile(b: PrivateBoard) {
+    const go = () => (b.kind === "work" ? router.push("/work") : setOpenId(b.id));
+    if (isLocked(b) && !pin.open) setAsking(() => go);
+    else go();
+  }
+
+  async function setLocked(b: PrivateBoard, locked: boolean) {
+    setBoards((bs) => bs?.map((x) => (x.id === b.id ? { ...x, locked } : x)) ?? bs);
+    await supabase.from("private_boards").update({ locked }).eq("id", b.id);
+  }
+
   const unused = SUGGESTED.filter((s) => !boards?.some((b) => b.title === t(s.title)));
 
   return (
@@ -83,7 +100,12 @@ export function PrivateSpace() {
           <h2 className="h2">{t("Private")}</h2>
           <p className="text-sm text-muted">{t("Only you can see this.")}</p>
         </div>
-        <button className="btn-ghost" onClick={() => setCreating({ emoji: "📝", title: "", kind: "list" })}>+ {t("Tile")}</button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button className="btn-ghost" onClick={() => setSettings(true)} aria-label={t("Code for locked tiles")}>
+            {pin.hasPin && !pin.open ? <Lock size={16} /> : <LockOpen size={16} />}
+          </button>
+          <button className="btn-ghost" onClick={() => setCreating({ emoji: "📝", title: "", kind: "list" })}>+ {t("Tile")}</button>
+        </div>
       </div>
 
       {boards && (
@@ -92,25 +114,22 @@ export function PrivateSpace() {
             const tint = TINTS[n % TINTS.length];
             // No preview of the content: someone may be looking over my shoulder.
             const left = b.kind === "work" ? workOpen : items.filter((i) => i.board_id === b.id && !i.done).length;
-            const className = "flex min-h-28 flex-col justify-between gap-2 rounded-[22px] p-4 text-left transition-transform active:scale-[0.98]";
-            const style = { background: `color-mix(in srgb, ${tint} 22%, var(--surface))` };
-            const inner = (
-              <>
+            return (
+              <button
+                key={b.id}
+                onClick={() => openTile(b)}
+                className="flex min-h-28 flex-col justify-between gap-2 rounded-[22px] p-4 text-left transition-transform active:scale-[0.98]"
+                style={{ background: `color-mix(in srgb, ${tint} 22%, var(--surface))` }}
+              >
                 <span className="min-w-0">
                   <span className="line-clamp-2 block font-bold leading-tight">{b.title}</span>
-                  {b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>}
+                  {isLocked(b) ? (
+                    <Lock size={14} className="mt-1 text-muted" aria-label={t("Locked")} />
+                  ) : (
+                    b.kind !== "note" && left > 0 && <span className="text-sm tabular-nums text-muted">{left}</span>
+                  )}
                 </span>
                 <span className="self-end text-3xl leading-none">{b.emoji}</span>
-              </>
-            );
-            // The work tile is a door to its own page (people, projects, meetings).
-            return b.kind === "work" ? (
-              <Link key={b.id} href="/work" className={className} style={style}>
-                {inner}
-              </Link>
-            ) : (
-              <button key={b.id} onClick={() => setOpenId(b.id)} className={className} style={style}>
-                {inner}
               </button>
             );
           })}
@@ -126,6 +145,12 @@ export function PrivateSpace() {
           ))}
         </div>
       )}
+
+      <PinSheet request={asking} onClose={() => setAsking(null)} />
+
+      <Sheet open={settings} onClose={() => setSettings(false)} title={t("Code for locked tiles")}>
+        {settings && <LockSettings boards={boards ?? []} onToggle={setLocked} />}
+      </Sheet>
 
       <Sheet open={!!creating} onClose={() => setCreating(null)} title={t("New tile")}>
         {creating && (
@@ -182,6 +207,72 @@ export function PrivateSpace() {
         )}
       </Sheet>
     </section>
+  );
+}
+
+// Set, change or remove the code, and choose which tiles it closes.
+function LockSettings({ boards, onToggle }: { boards: PrivateBoard[]; onToggle: (b: PrivateBoard, locked: boolean) => void }) {
+  const { t } = useFamily();
+  const pin = usePin();
+  const [changing, setChanging] = useState(false);
+  const [first, setFirst] = useState("");
+  const [again, setAgain] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^[0-9]{4,8}$/.test(first)) return setError(t("The code is 4 to 8 digits."));
+    if (first !== again) return setError(t("The two codes don't match."));
+    const failed = await pin.setPin(first);
+    if (failed) return setError(failed);
+    setFirst("");
+    setAgain("");
+    setError(null);
+    setChanging(false);
+  }
+
+  if (pin.hasPin === null) return null;
+  if (pin.hasPin && !pin.open) return <PinPad />;
+
+  if (!pin.hasPin || changing) {
+    return (
+      <form onSubmit={save} className="flex flex-col gap-3">
+        <p className="text-sm text-muted">
+          {t("Nobody else's account can see your private space. A code also keeps the tiles you choose closed when someone else holds your phone.")}
+        </p>
+        <input className="input text-center text-xl tracking-[0.4em]" type="password" inputMode="numeric" autoComplete="off" maxLength={8} autoFocus placeholder={t("New code")} value={first} onChange={(e) => setFirst(e.target.value.replace(/\D/g, ""))} />
+        <input className="input text-center text-xl tracking-[0.4em]" type="password" inputMode="numeric" autoComplete="off" maxLength={8} placeholder={t("Same code again")} value={again} onChange={(e) => setAgain(e.target.value.replace(/\D/g, ""))} />
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <button className="btn" disabled={first.length < 4 || again.length < 4}>{t("Save the code")}</button>
+        {changing && <button type="button" className="text-sm text-muted underline" onClick={() => setChanging(false)}>{t("Back")}</button>}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-sm font-semibold">{t("Closed by the code")}</h3>
+        <p className="text-xs text-muted">{t("Your private papers are always behind it too.")}</p>
+        <ul className="mt-1 divide-y divide-border">
+          {boards.map((b) => (
+            <li key={b.id}>
+              <label className="flex min-h-12 items-center gap-3">
+                <span className="text-xl">{b.emoji}</span>
+                <span className="min-w-0 flex-1 truncate">{b.title}</span>
+                <input type="checkbox" className="h-5 w-5" checked={b.locked} onChange={(e) => onToggle(b, e.target.checked)} />
+              </label>
+            </li>
+          ))}
+          {!boards.length && <li className="py-3 text-sm text-muted">{t("Nothing yet.")}</li>}
+        </ul>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn" onClick={pin.lock}><Lock size={16} /> {t("Lock now")}</button>
+        <button className="btn-ghost" onClick={() => setChanging(true)}>{t("Change the code")}</button>
+        <button className="btn-ghost text-danger" onClick={pin.clearPin}>{t("Remove the code")}</button>
+      </div>
+    </div>
   );
 }
 

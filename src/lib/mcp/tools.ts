@@ -12,7 +12,8 @@ import { ageInMonths } from "@/lib/dates";
 import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
 import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
 import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems, sortItems } from "@/lib/work";
-import type { KidClothes, KidSleep, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
+import { deadlines, nextRenewal, PAPER_CATEGORIES, PAPER_CATEGORY_IDS, PERIOD_IDS, upcomingDeadlines, yearlyCost } from "@/lib/papers";
+import type { KidClothes, KidSleep, Paper, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
 // Tools exposed to Claude through the family connector. Every query is
 // scoped to the caller's family (see ./context.ts) because the service-role
@@ -65,6 +66,13 @@ Routing:
   one item per person, kind give, already_handed_over. Recaps ("what's not done, who delivered?"): get_work with
   include_done, then a table per person from summary_by_person and the items. Use people's and projects' notes to route
   things ("the budget point" → whoever owns the budget); when the user tells you who does what, save it in notes.
+- Papers (contracts, insurance, warranties, IDs; "file this policy", "when can we cancel the electricity contract?",
+  "is Charlie insured?"): get_papers / add_paper / update_paper. From a PDF or photo, read it and fill every field you can,
+  dates and amounts only from the document; ask whether it's the family's or private when it's clearly personal (own work
+  contract, pension). Review ("what do we pay too much?", "check our insurance"): get_papers with review, then point out
+  cover paid twice (e.g. travel or accident cover already inside the home insurance), gaps for the household (e.g. a child
+  insurance for each kid), contracts to renegotiate or cancel before their last day, and the yearly total; give concrete
+  next steps, say it's not a broker's advice, and search the web for current prices only if the user asks to compare.
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -1547,6 +1555,167 @@ export function registerTools(server: McpServer) {
         if (missing.length) done.push(`not on the to-buy list: ${missing.join(", ")} (add them with status "have" if needed)`);
       }
       return text(done.length ? `${kid.name}: ${done.join("; ")}.` : "Nothing to change.");
+    },
+  );
+  // ---- Papers: contracts, insurance, warranties, IDs (family + the speaker's private ones)
+
+  server.registerTool(
+    "get_papers",
+    {
+      title: "Family papers",
+      description:
+        "The family's contracts, insurance policies, receipts kept for the warranty and IDs, plus the speaker's own private ones: who they cover, price, renewal, notice period and last day to cancel, expiry, what they cover. Deadlines of the next 90 days first. review = add yearly costs per category, what's missing in each paper, and the household (for a review of what we pay twice, gaps, what to renegotiate).",
+      inputSchema: z.object({
+        category: z.enum(PAPER_CATEGORY_IDS).optional(),
+        include_ended: z.boolean().optional().describe("Also cancelled / replaced ones"),
+        review: z.boolean().optional(),
+      }),
+    },
+    async ({ category, include_ended, review }) => {
+      const db = createAdminClient();
+      const owner = mcpContext.getStore()?.profileId ?? null;
+      let q = db.from("papers").select("*").eq("family_id", familyId()).order("category").order("title");
+      q = owner ? q.or(`profile_id.is.null,profile_id.eq.${owner}`) : q.is("profile_id", null);
+      if (category) q = q.eq("category", category);
+      if (!include_ended) q = q.eq("ended", false);
+      const [{ data, error }, { data: members }] = await Promise.all([
+        q,
+        db.from("members").select("id, name, birthdate, profile_id").eq("family_id", familyId()).order("created_at"),
+      ]);
+      if (error) throw new Error(error.message);
+      const papers = (data ?? []) as Paper[];
+      const today = stockholmDay(new Date().toISOString());
+      const nameOf = (id: string) => (members ?? []).find((m) => m.id === id)?.name ?? "?";
+      const out = papers.map((p) => {
+        const next = deadlines(p, today);
+        const renewal = p.period === "month" ? null : nextRenewal(p, today);
+        return {
+          id: p.id,
+          title: p.title,
+          category: p.category,
+          provider: p.provider ?? undefined,
+          reference: p.reference ?? undefined,
+          covers: p.member_ids.length ? p.member_ids.map(nameOf) : "whole household",
+          price: p.amount != null ? `${p.amount} ${p.currency}${p.period ? ` (${p.period})` : ""}` : undefined,
+          yearly_cost: yearlyCost(p) ?? undefined,
+          next_renewal: renewal ?? undefined,
+          notice_days: p.notice_days ?? undefined,
+          last_day_to_cancel: next.find((d) => d.kind === "cancel")?.date,
+          expires_on: p.expires_on ?? undefined,
+          warranty_until: p.warranty_until ?? undefined,
+          summary: p.summary ?? undefined,
+          details: Object.keys(p.details ?? {}).length ? p.details : undefined,
+          has_document: !!p.file_path,
+          private: p.profile_id ? true : undefined,
+          ended: p.ended || undefined,
+        };
+      });
+      const upcoming = upcomingDeadlines(papers, 90, today).map((d) => ({ paper: d.paper.title, what: d.kind, date: d.date, in_days: d.days }));
+      if (!review) return text({ today, upcoming, papers: out });
+      const perCategory: Record<string, number> = {};
+      for (const p of papers) {
+        const y = yearlyCost(p);
+        if (y != null && !p.ended) perCategory[`${p.category} (${p.currency})`] = (perCategory[`${p.category} (${p.currency})`] ?? 0) + y;
+      }
+      const missing = papers
+        .filter((p) => !p.ended)
+        .map((p) => ({
+          paper: p.title,
+          missing: [
+            p.amount == null && "price",
+            !p.renews_on && !p.expires_on && !p.warranty_until && "renewal or expiry date",
+            p.renews_on && p.notice_days == null && p.period !== "month" && "notice period",
+            !p.summary && "what it covers",
+          ].filter(Boolean),
+        }))
+        .filter((x) => x.missing.length);
+      return text({
+        today,
+        household: (members ?? []).map((m) => ({ name: m.name, adult: !!m.profile_id, age_months: m.birthdate ? ageInMonths(m.birthdate) : undefined })),
+        yearly_cost_per_category: perCategory,
+        upcoming,
+        papers: out,
+        incomplete: missing,
+      });
+    },
+  );
+
+  const paperFields = {
+    category: z.enum(PAPER_CATEGORY_IDS).optional().describe(PAPER_CATEGORIES.map((c) => `${c.id} = ${c.label}`).join("; ")),
+    provider: z.string().max(200).optional().describe("Company or authority, e.g. Folksam, Polisen"),
+    reference: z.string().max(200).optional().describe("Policy, contract or document number"),
+    covers: z.array(z.string()).optional().describe("First names of the family members it covers; empty = whole household"),
+    amount: z.number().min(0).optional().describe("Price per period, or the price paid for a purchase"),
+    currency: z.string().length(3).optional().describe("Default SEK"),
+    period: z.enum(PERIOD_IDS).optional(),
+    starts_on: z.string().optional().describe("YYYY-MM-DD"),
+    renews_on: z.string().optional().describe("Next renewal or end of binding period, YYYY-MM-DD"),
+    notice_days: z.number().int().min(0).max(730).optional().describe("Notice period (uppsägningstid) in days, 1 month = 30"),
+    expires_on: z.string().optional().describe("Expiry of an ID or fixed-term contract, YYYY-MM-DD"),
+    warranty_until: z.string().optional().describe("End of warranty, YYYY-MM-DD (Swedish reklamationsrätt: purchase + 3 years)"),
+    summary: z.string().max(4000).optional().describe("What it covers, 3-6 short lines, in the user's language"),
+    details: z.record(z.string(), z.string()).optional().describe('Key terms, e.g. {"Självrisk": "1 500 kr", "Reseskydd": "45 dagar"}'),
+  };
+
+  async function paperRow(f: { [K in keyof typeof paperFields]?: unknown } & { covers?: string[] }) {
+    const row: Record<string, unknown> = {};
+    for (const k of ["category", "provider", "reference", "amount", "period", "starts_on", "renews_on", "notice_days", "expires_on", "warranty_until", "summary", "details"] as const) {
+      if (f[k] !== undefined) row[k] = f[k] === "" ? null : f[k];
+    }
+    if (typeof f.currency === "string") row.currency = f.currency.toUpperCase();
+    if (f.covers) row.member_ids = await Promise.all(f.covers.map((n) => memberIdByName(n)));
+    return row;
+  }
+
+  server.registerTool(
+    "add_paper",
+    {
+      title: "Add a paper",
+      description:
+        "File a contract, insurance policy, receipt kept for the warranty or ID in the family's papers (Me → Papers). Read the document the user sent and fill every field you can; only use dates and amounts from the document. private = only the speaker sees it (their own work contract, pension…). The document itself can be attached in the app. Call get_papers first to avoid duplicates.",
+      inputSchema: z.object({ title: z.string().min(1).max(200).describe("Short name, e.g. 'Home insurance'"), private: z.boolean().optional(), ...paperFields }),
+    },
+    async ({ title, private: priv, ...fields }) => {
+      const db = createAdminClient();
+      const { data: same } = await db.from("papers").select("id").eq("family_id", familyId()).ilike("title", title.trim()).eq("ended", false).limit(1);
+      if (same?.length) throw new Error(`There is already a paper called "${title}". Use update_paper, or a more specific title.`);
+      const { error } = await db.from("papers").insert({
+        family_id: familyId(),
+        profile_id: priv ? ownerId() : null,
+        title: title.trim(),
+        ...(await paperRow(fields)),
+        created_by: createdBy(),
+      });
+      if (error) throw new Error(error.message);
+      return text(`Added "${title}" to ${priv ? "your private papers" : "the family's papers"}. The PDF can be attached in the app (Me → Papers).`);
+    },
+  );
+
+  server.registerTool(
+    "update_paper",
+    {
+      title: "Update a paper",
+      description:
+        "Change a paper found by title (or id from get_papers): new price at renewal, new renewal date, notice period, coverage… details are merged with the existing ones. ended = cancelled or replaced (kept, no more reminders).",
+      inputSchema: z.object({ paper: z.string().describe("Title or id"), title: z.string().min(1).max(200).optional(), ended: z.boolean().optional(), ...paperFields }),
+    },
+    async ({ paper, title, ended, ...fields }) => {
+      const db = createAdminClient();
+      const owner = mcpContext.getStore()?.profileId ?? null;
+      let q = db.from("papers").select("id, title, details").eq("family_id", familyId());
+      q = owner ? q.or(`profile_id.is.null,profile_id.eq.${owner}`) : q.is("profile_id", null);
+      const { data } = await q;
+      const rows = data ?? [];
+      const n = paper.trim().toLowerCase();
+      const hit = rows.find((r) => r.id === paper) ?? rows.find((r) => r.title.toLowerCase() === n) ?? rows.find((r) => r.title.toLowerCase().includes(n));
+      if (!hit) throw new Error(`No paper called "${paper}". Papers: ${rows.map((r) => r.title).join(", ") || "none"}`);
+      const row = await paperRow(fields);
+      if (fields.details) row.details = { ...(hit.details as Record<string, string>), ...fields.details };
+      if (title) row.title = title.trim();
+      if (ended !== undefined) row.ended = ended;
+      const { error } = await db.from("papers").update({ ...row, updated_at: new Date().toISOString() }).eq("id", hit.id).eq("family_id", familyId());
+      if (error) throw new Error(error.message);
+      return text(`Updated "${hit.title}": ${Object.keys(row).join(", ")}.`);
     },
   );
 }

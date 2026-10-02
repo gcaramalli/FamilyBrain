@@ -55,11 +55,13 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [ ] Per-family limits/abuse protection on open sign-up
 
 ## Later / maybe
-- BVC milestones, chores, documents vault
+- BVC milestones, chores
 - [x] Receipts: photo → Claude → `log_receipt` (purchases with store/price, checks off the list)
 - Kivra: no public API for private users as far as we know — not planned
 
 ## Done
+- [x] Papers (contracts, insurance, warranties, IDs): renewal / last day to cancel on Today and in the evening push,
+      Claude reads a PDF or photo, `get_papers` review; family or private, private tiles lockable with a code
 - [x] Evening reminders and "you've been given something to do" (web push, Vercel Cron)
 - [x] Undo instead of confirmation dialogs; calmer ink-on-paper interface where colour means a person
 - [x] Little gifts between family members ("à toi, à moi"): send an emoji + note, unwrapped on next open; also via Claude (`send_gift`)
