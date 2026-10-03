@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0021 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0024 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -83,7 +83,7 @@ Rules of thumb:
   attendees) and items (`kind` todo/give/discuss, `status` open → waiting (handed over) → done, optional person/project/meeting).
   A person's page = their items + items on their projects; a meeting's agenda = its own (collective) items first, then each attendee's give/discuss items under their name, for its
   attendees (`src/lib/work.ts`); `not_before` keeps an item off agendas until then ("for next week's meeting"), done items
-  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others. Owner-only RLS like `private_boards`. The one private part the connector reaches
+  stay visible `HISTORY_DAYS` (60) for recaps, people and projects carry `notes` (who owns what) for routing. `priority` puts an item first everywhere; the Me tab of /work = priorities, my own to-dos (`kind` todo), unsorted, waiting on others, and the tab switches (`profiles.work_hidden_tabs` hides People / Projects / Meetings, data kept). Delete a person / project / meeting from the bottom of its sheet (items stay, unsorted). Owner-only RLS like `private_boards`. The one private part the connector reaches
   (`get_work` / `add_work_items` / `update_work_item` / `set_work_entry`), always filtered by the token owner's `profile_id`
   and refused for the legacy family token.
 - `feedback` — ideas / bugs sent from Settings → Give feedback (own rows only); super admins read them through
@@ -92,13 +92,21 @@ Rules of thumb:
   `src/lib/ai-budget.ts`; only super admins write it) and `ai_usage` (one row per in-app Claude call with tokens and
   `cost_usd`, written with the service role by `extract()` in `src/lib/ai.ts`, which refuses a call once the month's
   spend reaches the cap → HTTP 402). Admin view: `/stats/ai` via `hembrain_ai_usage()`. The connector costs nothing here.
+- `visited_countries` — Travels: one row per member and country (ISO alpha-2, `first_year`, `note`), names translated with
+  `Intl.DisplayNames` and pasted lists in any language matched by `parseCountries` (`src/lib/countries.ts`). Map outlines are
+  pre-projected in `src/lib/world-map.json` (built by `scripts/gen-world-map.mjs`, no map library), drawn by `WorldMap`:
+  each person's colour, stripes when several of us went. Tile on Home, page `/travels`; connector `get_travels` / `add_countries`.
+- `trips` — Travels timeline (`/travels/timeline`, from Travels, filtered on me by default but family-visible):
+  `country`, `start_month` / `end_month` (first of the month; no start = year unknown), `lived`, `note`, `member_ids` (who went).
+  A trigger (`private.trip_ticks_country`) ticks the country in `visited_countries` for everyone who went and keeps
+  `first_year` to the earliest trip; deleting a trip leaves the tick. Connector `add_trips`; `get_travels` returns the trips too.
 - `papers` — contracts, insurance, receipts kept for the warranty, IDs (Me → Papers, `/papers`): `category` (ids in
   `src/lib/papers.ts`), `provider`, `member_ids` (who it covers, empty = household), `amount` + `period`, `renews_on` +
   `notice_days` (last day to cancel, rolled forward by period in `nextRenewal()`; monthly contracts get no deadlines),
   `expires_on`, `warranty_until`, `summary`, `details` (jsonb of key terms), `ended`. `profile_id` null = the family's,
   set = private to that account (RLS). The document goes to the private `papers` storage bucket at
   `<family_id>/<paper_id>/<file>` (storage policies check the paper row is visible), read through signed URLs.
-  Deadlines in the next 30 days show on Today (private ones unnamed) and in the evening push 30/7/1 days ahead.
+  Deadlines in the next 30 days show on Home (private ones unnamed) and in the evening push 30/7/1 days ahead.
   In-app "photo or PDF" reading = `/api/ai/paper` (Haiku, metered). Connector: `get_papers` (with `review` for the yearly
   review), `add_paper`, `update_paper`; files can't go through the connector.
 - Locked tiles: `private_boards.locked` + a per-account code (4–8 digits) hashed in `private.pins`, only reached through
@@ -128,7 +136,7 @@ Rules of thumb:
   `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
-- Navigation: five tabs, one job each — Home (`/`: today at the top, then the family's shared tiles: to-do, shopping, meals, `/brain`, `/papers`), Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
+- Navigation: five tabs, one job each — Home (`/`: today at the top, then the family's shared tiles: to-do, shopping, meals, `/brain`, `/papers`, `/travels`), Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
   the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: only what is private — private tiles, `/work`).
   Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
   give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).

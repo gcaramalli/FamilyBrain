@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
@@ -15,6 +16,11 @@ import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel,
 import { whenLabel } from "@/components/occasions-panel";
 import { deadlineText, inDays, upcomingDeadlines, type Deadline } from "@/lib/papers";
 import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
+
+const TravelsTile = dynamic(() => import("@/components/travels-tile"), {
+  ssr: false,
+  loading: () => <div className="card col-span-2 min-h-56" />,
+});
 
 export default function TodayPage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
@@ -143,6 +149,7 @@ export default function TodayPage() {
         <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
         <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
         <HubTile href="/papers" module="papers" title={t("Papers")} sub={t("Contracts, insurance, receipts, IDs")} />
+        <TravelsTile />
       </nav>
     </div>
   );

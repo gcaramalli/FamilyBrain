@@ -17,6 +17,8 @@
   --edge: transparent;
   /* The selected pill of a segmented control. */
   --pill: #ffffff;
+  /* Countries nobody has been to yet (Travels map). */
+  --map-land: #dedad1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -34,6 +36,7 @@
     --lift: none;
     --edge: transparent;
     --pill: #33405a;
+    --map-land: #2c3749;
   }
 }
 
@@ -110,3 +113,76 @@ body {
 }
 .animate-gift-pop { animation: gift-pop 0.5s ease-out both; }
 .animate-gift-wiggle { animation: gift-wiggle 1.2s ease-in-out infinite; }
+
+/* Public landing page (/welcome). Motion is decoration only: everything is
+   readable without it, and it stops for people who ask for less motion. */
+.landing-gradient {
+  background: linear-gradient(100deg, #9b7bf0 0%, #5b8def 30%, #2fa4c9 55%, #f5904a 80%, #e07ab4 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landing-shine 9s ease-in-out infinite alternate;
+}
+.landing-h2 {
+  @apply text-[2.2rem] leading-[1.03] font-bold tracking-[-0.035em] text-balance sm:text-[3.2rem];
+}
+.landing-blob {
+  position: absolute;
+  width: 46vmax;
+  height: 46vmax;
+  max-width: 720px;
+  max-height: 720px;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.22;
+  animation: landing-drift 22s ease-in-out infinite alternate;
+}
+.landing-phone {
+  box-shadow: 0 50px 100px -30px rgba(28, 27, 25, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.12) inset, 0 0 0 1px rgba(0, 0, 0, 0.08);
+  transform: rotate(-2deg);
+}
+.landing-in { animation: landing-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.landing-float { animation: landing-float 6s ease-in-out infinite; }
+.landing-wiggle { display: inline-block; animation: gift-wiggle 1.6s ease-in-out infinite; }
+.landing-grow { transform-origin: bottom; animation: landing-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.landing-marquee { animation: landing-marquee 60s linear infinite; }
+.landing-marquee:hover { animation-play-state: paused; }
+@supports (animation-timeline: view()) {
+  .landing-reveal {
+    animation: landing-in linear both;
+    animation-timeline: view();
+    animation-range: entry 0% entry 60%;
+  }
+}
+@keyframes landing-in {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes landing-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(8%, 12%) scale(1.15); }
+}
+@keyframes landing-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes landing-marquee {
+  to { transform: translateX(-50%); }
+}
+@keyframes landing-shine {
+  to { background-position: 100% 0; }
+}
+@media (prefers-color-scheme: dark) {
+  .landing-blob { opacity: 0.18; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-gradient, .landing-blob, .landing-in, .landing-float, .landing-wiggle, .landing-grow, .landing-marquee, .landing-reveal {
+    animation: none !important;
+  }
+}
+.landing-glow .landing-blob { opacity: 0.45; }

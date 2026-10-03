@@ -5,7 +5,7 @@ tonight?") and it writes into the app: calendar, lists, recipes and notes.
 
 ## How it works
 
-The app exposes an MCP connector: 34 tools (get_events, add_event, add_to_list, check_off, log_purchase,
+The app exposes an MCP connector: 37 tools (get_events, add_event, add_to_list, check_off, log_purchase,
 log_receipt, dinner_ideas, log_meal, get_meals, plan_groceries, get_kid_sleep, log_sleep, get_wardrobe, update_wardrobe, send_gift, search_recipes, get_notes, get_papers, add_paper…). Send a photo of a receipt and Claude logs it; send an
 insurance policy or a contract and Claude files it in Papers. "Review our papers" asks Claude for what you pay twice,
 what's missing and what to cancel before its deadline. Claude calls them when you ask for something; it never browses the site and

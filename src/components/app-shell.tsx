@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
   // The Me tab is my own space; settings hang off the avatar, top right.
-  const HOME = ["/brain", "/papers"];
+  const HOME = ["/brain", "/papers", "/travels"];
   const ME = ["/me", "/work"];
   const SETTINGS = ["/settings", "/profile", "/connections", "/admin", "/feedback", "/stats"];
   const inSettings = SETTINGS.some((p) => pathname.startsWith(p));

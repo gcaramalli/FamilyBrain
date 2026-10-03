@@ -10,6 +10,7 @@ export type Profile = {
   role: Role;
   color: string;
   locale: "en" | "fr" | "sv";
+  work_hidden_tabs?: string[]; // Work tabs this account hides (0021)
 };
 
 export type Member = {
@@ -258,4 +259,29 @@ export type Paper = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// A country one member of the family has been to (Travels).
+export type VisitedCountry = {
+  id: string;
+  member_id: string;
+  country: string; // ISO 3166-1 alpha-2
+  first_year: number | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+// One trip, or a stretch lived somewhere (Travels → Timeline). Months are the
+// first day of the month; no start = year unknown.
+export type Trip = {
+  id: string;
+  country: string;
+  start_month: string | null;
+  end_month: string | null;
+  lived: boolean;
+  note: string | null;
+  member_ids: string[];
+  created_by: string | null;
+  created_at: string;
 };

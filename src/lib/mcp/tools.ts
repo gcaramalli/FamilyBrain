@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { mcpContext, type McpContext } from "./context";
 import { categoryById, categoryOrder, guessCategory } from "@/lib/categories";
 import { familyBirthdays } from "@/lib/occasions";
+import { countryName, findCountry } from "@/lib/countries";
 import { occurrenceDates, RECURRENCES, type Recurrence } from "@/lib/recurrence";
 import { stockholmToUtc, utcToStockholm } from "./time";
 import { FOOD_GROUP_IDS, groupCounts } from "@/lib/meals";
@@ -51,6 +52,9 @@ Routing:
 - What the kid ate and how it went ("Charlie refused the fish"): log_meal with who = the kid and reaction. Ideas for the
   kid's meals: get_meals with who = the kid (loves / refuses) and suggest what fits their age and balances their week.
 - Family facts (pickup rules, allergies, contacts): get_notes / add_note.
+- Travels ("we went to Lisbon in July with Jennie", "Jenny has been to Japan", "where haven't we been?", "when did I
+  last go to London?", trip ideas): get_travels (countries per person + the trips timeline). A dated trip → add_trips
+  (ticks the country for everyone who went); a country with no date → add_countries. Pass countries as ISO codes or names.
 - "Send Jennie a little heart": send_gift (an emoji + optional short note, unwrapped in the app).
 - Birthdays of the family's own members (parents, kids): set_birthdate (they show in the calendar and the others are
   reminded the evening before). Weddings, friends' and relatives' birthdays, anniversaries: get_occasions / add_occasion. These are kept out of
@@ -1557,6 +1561,140 @@ export function registerTools(server: McpServer) {
       return text(done.length ? `${kid.name}: ${done.join("; ")}.` : "Nothing to change.");
     },
   );
+
+  server.registerTool(
+    "get_travels",
+    {
+      title: "Countries we've been to",
+      description: "Every family member's visited countries (Travels map) with the first year when known, the ones all of us have been to, and the timeline of trips (newest first: country, month, who, note).",
+      inputSchema: z.object({}),
+    },
+    async () => {
+      const db = createAdminClient();
+      const [{ data: people }, { data: rows, error }] = await Promise.all([
+        db.from("members").select("id, name").eq("family_id", familyId()).order("created_at"),
+        db.from("visited_countries").select("member_id, country, first_year, note").eq("family_id", familyId()),
+      ]);
+      const { data: trips } = await db
+        .from("trips")
+        .select("country, start_month, end_month, lived, note, member_ids")
+        .eq("family_id", familyId())
+        .order("start_month", { ascending: false, nullsFirst: false });
+      if (error) throw new Error(error.message);
+      const all = rows ?? [];
+      const byPerson = (people ?? []).map((p) => ({
+        name: p.name,
+        countries: all
+          .filter((r) => r.member_id === p.id)
+          .map((r) => ({ code: r.country, name: countryName(r.country), ...(r.first_year ? { first_year: r.first_year } : {}), ...(r.note ? { note: r.note } : {}) }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+      const codes = [...new Set(all.map((r) => r.country))];
+      const together = codes.filter((c) => (people ?? []).every((p) => all.some((r) => r.member_id === p.id && r.country === c)));
+      const nameOf = (id: string) => (people ?? []).find((p) => p.id === id)?.name ?? "?";
+      return text({
+        family_total: codes.length,
+        people: byPerson,
+        everyone_has_been: together.map((c) => countryName(c)),
+        trips: (trips ?? []).map((x) => ({
+          country: countryName(x.country),
+          from: x.start_month?.slice(0, 7) ?? "unknown",
+          ...(x.end_month ? { to: x.end_month.slice(0, 7) } : {}),
+          ...(x.lived ? { lived_there: true } : {}),
+          ...(x.note ? { note: x.note } : {}),
+          who: (x.member_ids as string[]).map(nameOf),
+        })),
+      });
+    },
+  );
+
+  server.registerTool(
+    "add_countries",
+    {
+      title: "Add countries we've been to",
+      description: "Mark countries as visited by one or more family members (or remove them, only when asked). Countries: ISO codes or names in any language.",
+      inputSchema: z.object({
+        who: z.array(z.string()).min(1).describe("First names of the family members who went"),
+        countries: z.array(z.string().min(1)).min(1).max(250),
+        first_year: z.number().int().min(1900).max(2100).optional().describe("First time there, when it is one trip"),
+        note: z.string().max(500).optional(),
+        remove: z.boolean().optional().describe("Remove these countries instead (only when explicitly asked)"),
+      }),
+    },
+    async ({ who, countries, first_year, note, remove }) => {
+      const db = createAdminClient();
+      const memberIds = await Promise.all(who.map((n) => memberIdByName(n)));
+      const codes = [...new Set(countries.map((c) => findCountry(c)).filter((c): c is string => !!c))];
+      const unknown = countries.filter((c) => !findCountry(c));
+      if (remove) {
+        const { error } = await db.from("visited_countries").delete().eq("family_id", familyId()).in("member_id", memberIds as string[]).in("country", codes);
+        if (error) throw new Error(error.message);
+        return text({ removed: codes.map((c) => countryName(c)), for: who, not_recognised: unknown });
+      }
+      const rows = memberIds.flatMap((member_id) =>
+        codes.map((country) => ({
+          family_id: familyId(),
+          member_id,
+          country,
+          created_by: createdBy(),
+          ...(first_year ? { first_year } : {}),
+          ...(note ? { note } : {}),
+        })),
+      );
+      // A year or a note updates countries already ticked; otherwise they are left as they are.
+      const { error } = await db
+        .from("visited_countries")
+        .upsert(rows, { onConflict: "member_id,country", ignoreDuplicates: !first_year && !note });
+      if (error) throw new Error(error.message);
+      return text({ added: codes.map((c) => countryName(c)), for: who, not_recognised: unknown });
+    },
+  );
+
+  server.registerTool(
+    "add_trips",
+    {
+      title: "Add trips to the timeline",
+      description:
+        "Add dated trips (or a stretch lived somewhere) to the Travels timeline. Each trip also ticks its country on the map for everyone who went. One trip per country: a trip through Croatia and Bosnia = two trips.",
+      inputSchema: z.object({
+        trips: z
+          .array(
+            z.object({
+              country: z.string().min(1).describe("ISO code or name"),
+              from: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("YYYY-MM; leave out when the year is unknown"),
+              to: z.string().regex(/^\d{4}-\d{2}$/).optional().describe("YYYY-MM, for trips over several months"),
+              who: z.array(z.string()).min(1).describe("First names of the family members who went"),
+              note: z.string().max(500).optional().describe("What it was: 'Kate's wedding in Bristol', 'with Alex'"),
+              lived: z.boolean().optional().describe("Lived there (studies, work, residence)"),
+            }),
+          )
+          .min(1)
+          .max(100),
+      }),
+    },
+    async ({ trips }) => {
+      const rows = await Promise.all(
+        trips.map(async (x) => {
+          const country = findCountry(x.country);
+          if (!country) throw new Error(`Unknown country "${x.country}"`);
+          return {
+            family_id: familyId(),
+            country,
+            start_month: x.from ? `${x.from}-01` : null,
+            end_month: x.from && x.to && x.to >= x.from ? `${x.to}-01` : null,
+            lived: x.lived ?? false,
+            note: x.note?.trim() || null,
+            member_ids: (await Promise.all(x.who.map((n) => memberIdByName(n)))) as string[],
+            created_by: createdBy(),
+          };
+        }),
+      );
+      const { error } = await createAdminClient().from("trips").insert(rows);
+      if (error) throw new Error(error.message);
+      return text({ added: trips.map((x) => `${countryName(findCountry(x.country)!)} ${x.from ?? "(year unknown)"} — ${x.who.join(", ")}`) });
+    },
+  );
+
   // ---- Papers: contracts, insurance, warranties, IDs (family + the speaker's private ones)
 
   server.registerTool(
