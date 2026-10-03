@@ -50,6 +50,9 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
       season essentials), food (the kid's meals, loves / refuses), plus the family's own list and note tiles
 - [ ] Breastfeeding / bottle log for newborns (Food tile)
 
+## 5b. Money
+- [x] Shared expenses between the parents (who paid, usual split 50/50 or set per family, adjust per expense, who owes whom, settle up); connector `add_expense` / `get_expenses`
+
 ## 6. If Hembrain becomes a product (Sweden)
 - [x] Swedish, French and English UI, language per account
 - [ ] GDPR: privacy policy, self-service data export and account deletion

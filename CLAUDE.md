@@ -8,7 +8,7 @@ next steps in `ROADMAP.md`.
 Next.js 16 + Supabase. All data lives in Supabase Postgres; every table is scoped by `family_id` and
 protected by RLS (`private.my_family_id()`, in a schema the API does not expose).
 
-Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0024 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
+Supabase project: **Caramalli Familly brain** (`jvzwbguwoafayxmdirnj`, in Jenny's org, eu-west-1). Migrations 0001–0026 are applied. Sign-up is open (multi-family); joining a family needs an invite code (`invites.code`, link `/signup?invite=…`), see `handle_new_user()` in `0004_dashboard_users_join_invited_family.sql` (accounts created from the Supabase dashboard have no metadata and join the family that invited their email). A user's family = `profiles.family_id`.
 
 ## Adding things for the family
 
@@ -113,6 +113,13 @@ Rules of thumb:
   `private_pin_status/set/check/clear()` (5 wrong → 5 min wait). `src/components/pin-lock.tsx`: `usePin`, `PinGate`,
   `PinSheet`; unlocked state is in memory and relocks after a minute in the background. Private papers are always behind
   the code when one is set. A curtain for a shared phone, not encryption: RLS already hides these rows from other accounts.
+- `expenses` — shared expenses, a small Tricount (Home → Expenses, `/expenses`): `paid_by` a member, `split_among` (the
+  adults by default; kids never pay), `shares` = `{member_id: weight}` for an uneven split (null = equal), `settlement` = a
+  payback (payer gives the amount to the one person in `split_among`, same arithmetic). The family's usual split
+  (`expense_settings.shares`, empty = 50/50, editable by both parents) is copied onto each new expense; opening one
+  offers 50/50, the usual split, or Other (amounts by hand). Parts and the fewest transfers in `parts` / `settleUp`
+  (`src/lib/expenses.ts`, in cents, per currency). Connector `add_expense` (usual split by default, `shares` by name) /
+  `get_expenses`.
 - `gifts` — little gifts between accounts (emoji + note), private to sender/recipient, unwrapped in `GiftInbox`
 - `profiles.locale` — app language per account (en/fr/sv)
 - `occasions` — dates celebrated every year (weddings attended, friends' / relatives' birthdays): `date` = original day,
@@ -138,6 +145,7 @@ Rules of thumb:
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
 - Navigation: five tabs, one job each — Home (`/`: today at the top, then the family's shared tiles: to-do, shopping, meals, `/brain`, `/papers`, `/travels`), Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
   the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: only what is private — private tiles, `/work`).
+  Optional parts nobody has filled in yet show as dashed tiles (`HubTile empty`, private-space suggestions) with one line on what they are for, so they advertise the feature; they turn solid once there is data. Private suggestions are matched by kind (work, gifts) or by name in any language, never by the current locale's title only.
   Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
   give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what

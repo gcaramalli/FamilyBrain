@@ -285,3 +285,20 @@ export type Trip = {
   created_by: string | null;
   created_at: string;
 };
+
+// Shared expenses (Home → Expenses): who paid, for whom, split equally.
+export type Expense = {
+  id: string;
+  family_id: string;
+  title: string;
+  amount: number;
+  currency: string;
+  paid_by: string;
+  split_among: string[];
+  // {member_id: weight}; null = equal between split_among
+  shares: Record<string, number> | null;
+  spent_on: string;
+  settlement: boolean;
+  created_by: string | null;
+  created_at: string;
+};

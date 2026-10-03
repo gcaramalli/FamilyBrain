@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useFamily } from "./family-context";
 import { ModuleIcon } from "./module-icon";
+import { HubTile } from "./hub-tile";
 import { WorldMap } from "./world-map";
 import { whoWent } from "@/lib/countries";
 
-// Today → Travels: the family's map at a glance. Loaded lazily (the map's
+// Home → Travels: the family's map at a glance. Loaded lazily (the map's
 // outlines weigh ~110 kB) so it never slows the rest of Today down.
 export default function TravelsTile() {
   const { supabase, members, t } = useFamily();
@@ -21,6 +22,8 @@ export default function TravelsTile() {
   }, [supabase]);
 
   const who = whoWent(rows ?? []);
+  // Nobody has ticked a country yet: a small dashed tile instead of an empty map.
+  if (rows?.length === 0) return <HubTile href="/travels" module="travels" title={t("Travels")} sub={t("Where have we been?")} empty />;
   return (
     <Link href="/travels" className="card col-span-2 flex flex-col gap-3 p-4 active:scale-[0.98] transition-transform">
       <div className="flex items-start justify-between gap-3">

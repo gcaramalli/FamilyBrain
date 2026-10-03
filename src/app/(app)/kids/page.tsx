@@ -25,6 +25,7 @@ export default function KidPage() {
   const toast = useToast();
   const [sleep, setSleep] = useState<KidSleep[]>([]);
   const [toBuy, setToBuy] = useState(0);
+  const [clothes, setClothes] = useState<number | null>(null);
   const [lastMeal, setLastMeal] = useState<Meal | null>(null);
   const [boards, setBoards] = useState<KidBoard[]>([]);
   const [items, setItems] = useState<KidItem[]>([]);
@@ -35,9 +36,10 @@ export default function KidPage() {
 
   const load = useCallback(async () => {
     if (!kidId) return;
-    const [s, c, m, b] = await Promise.all([
+    const [s, c, all, m, b] = await Promise.all([
       supabase.from("kid_sleep").select("*").eq("kid_id", kidId).order("starts_at", { ascending: false }).limit(10),
       supabase.from("kid_clothes").select("id", { count: "exact", head: true }).eq("kid_id", kidId).eq("status", "need"),
+      supabase.from("kid_clothes").select("id", { count: "exact", head: true }).eq("kid_id", kidId),
       supabase.from("meals").select("*").or(`member_ids.cs.{${kidId}},member_ids.eq.{}`).order("eaten_on", { ascending: false }).order("created_at", { ascending: false }).limit(1),
       supabase.from("kid_boards").select("*").eq("kid_id", kidId).order("position").order("created_at"),
     ]);
@@ -45,6 +47,7 @@ export default function KidPage() {
     const i = ids.length ? await supabase.from("kid_items").select("*").in("board_id", ids).order("created_at") : { data: [] };
     setSleep((s.data ?? []) as KidSleep[]);
     setToBuy(c.count ?? 0);
+    setClothes(all.count ?? 0);
     setLastMeal(((m.data ?? []) as Meal[])[0] ?? null);
     setBoards((b.data ?? []) as KidBoard[]);
     setItems((i.data ?? []) as KidItem[]);
@@ -79,6 +82,12 @@ export default function KidPage() {
   const sizes = [kid.clothing_size && t("Size {size}", { size: kid.clothing_size }), kid.shoe_size && t("Shoes {size}", { size: kid.shoe_size })].filter(Boolean);
   const wardrobeSub = [...sizes, toBuy ? (toBuy === 1 ? t("1 to buy") : t("{n} to buy", { n: toBuy })) : null].filter(Boolean).join(" · ") || t("Sizes, clothes, what's missing");
   const open = boards.find((b) => b.id === openId) ?? null;
+  // Tiles nobody has filled in yet are drawn dashed: they show what is there to use.
+  const loaded = clothes !== null;
+  const noPreschool = !kid.care_place && !kid.care_days?.length;
+  const noSleep = loaded && sleep.length === 0;
+  const noWardrobe = loaded && clothes === 0 && sizes.length === 0;
+  const noFood = loaded && !lastMeal;
 
   async function create(d: Draft) {
     const title = d.title.trim();
@@ -125,10 +134,10 @@ export default function KidPage() {
       )}
 
       <nav className="grid grid-cols-2 gap-3">
-        <HubTile href="/kids/preschool" module="preschool" title={t("Preschool")} sub={kid.care_place || t("Drop-offs and pick-ups")} />
-        <HubTile href="/kids/sleep" module="sleep" title={t("Sleep")} sub={sleepSub} />
-        <HubTile href="/kids/wardrobe" module="wardrobe" title={t("Wardrobe")} sub={wardrobeSub} />
-        <HubTile href="/kids/food" module="food" title={t("Food")} sub={lastMeal ? t("Last: {meal}", { meal: lastMeal.title }) : t("What {name} eats and likes", { name: kid.name })} />
+        <HubTile href="/kids/preschool" module="preschool" title={t("Preschool")} sub={kid.care_place || t("Drop-offs and pick-ups")} empty={noPreschool} />
+        <HubTile href="/kids/sleep" module="sleep" title={t("Sleep")} sub={sleepSub} empty={noSleep} />
+        <HubTile href="/kids/wardrobe" module="wardrobe" title={t("Wardrobe")} sub={wardrobeSub} empty={noWardrobe} />
+        <HubTile href="/kids/food" module="food" title={t("Food")} sub={lastMeal ? t("Last: {meal}", { meal: lastMeal.title }) : t("What {name} eats and likes", { name: kid.name })} empty={noFood} />
         {boards.map((b) => {
           const left = items.filter((i) => i.board_id === b.id && !i.done).length;
           return (

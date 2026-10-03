@@ -15,14 +15,17 @@ import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
 import { deadlineText, inDays, upcomingDeadlines, type Deadline } from "@/lib/papers";
-import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
+import { fmtMoney, settleUp } from "@/lib/expenses";
+import { BCP47 } from "@/lib/i18n";
+import type { CareAvailability, Expense, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
 
 const TravelsTile = dynamic(() => import("@/components/travels-tile"), {
   ssr: false,
   loading: () => <div className="card col-span-2 min-h-56" />,
 });
 
-export default function TodayPage() {
+// Home: the day at a glance, then a door to each part of the family's life.
+export default function HomePage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [events, setEvents] = useState<EventOccurrence[]>([]);
@@ -31,7 +34,12 @@ export default function TodayPage() {
   const [todoCount, setTodoCount] = useState<number | null>(null);
   const [dueTodos, setDueTodos] = useState<ListItem[]>([]);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
+  // Optional parts show dashed until someone fills them in.
+  const [mealCount, setMealCount] = useState<number | null>(null);
+  const [noteCount, setNoteCount] = useState<number | null>(null);
   const [paperDates, setPaperDates] = useState<Deadline[]>([]);
+  const [paperCount, setPaperCount] = useState<number | null>(null);
+  const [expenses, setExpenses] = useState<Pick<Expense, "amount" | "currency" | "paid_by" | "split_among" | "shares">[] | null>(null);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -65,16 +73,25 @@ export default function TodayPage() {
       .eq("done", false)
       .eq("lists.kind", "todo")
       .then(({ count }) => setTodoCount(count ?? 0));
+    supabase.from("meals").select("id", { count: "exact", head: true }).then(({ count }) => setMealCount(count ?? 0));
+    supabase.from("notes").select("id", { count: "exact", head: true }).then(({ count }) => setNoteCount(count ?? 0));
     supabase
       .from("restock_suggestions")
       .select("*")
       .order("next_due_on")
       .then(({ data }) => setRestock(((data ?? []) as RestockSuggestion[]).filter((r) => daysUntil(r.next_due_on) <= 3)));
     supabase
+      .from("expenses")
+      .select("amount, currency, paid_by, split_among, shares")
+      .then(({ data }) => setExpenses(data ?? []));
+    supabase
       .from("papers")
       .select("*")
       .eq("ended", false)
-      .then(({ data }) => setPaperDates(upcomingDeadlines((data ?? []) as Paper[], 30)));
+      .then(({ data }) => {
+        setPaperCount(data?.length ?? 0);
+        setPaperDates(upcomingDeadlines((data ?? []) as Paper[], 30));
+      });
     return () => {
       supabase.removeChannel(channel);
     };
@@ -146,9 +163,34 @@ export default function TodayPage() {
             (restock.length > 0 ? ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}` : "")
           }
         />
-        <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
-        <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
-        <HubTile href="/papers" module="papers" title={t("Papers")} sub={t("Contracts, insurance, receipts, IDs")} />
+        <HubTile
+          href="/meals"
+          module="meals"
+          title={t("Meals")}
+          empty={mealCount === 0}
+          sub={mealCount === 0 ? t("Log what you eat, Claude balances the week") : t("What we ate")}
+        />
+        <HubTile
+          href={noteCount === 0 && occasions.length > 0 ? "/brain?tab=dates" : "/brain"}
+          module="brain"
+          title={t("Family brain")}
+          empty={noteCount === 0 && occasions.length === 0}
+          sub={
+            noteCount === null
+              ? "…"
+              : noteCount === 0 && occasions.length === 0
+                ? t("Birthdays, weddings, preschool address: what Claude should know")
+                : [occasions.length === 1 ? t("1 date") : t("{n} dates", { n: occasions.length }), noteCount === 1 ? t("1 note") : t("{n} notes", { n: noteCount })].join(" · ")
+          }
+        />
+        <ExpensesTile expenses={expenses} />
+        <HubTile
+          href="/papers"
+          module="papers"
+          title={t("Papers")}
+          empty={paperCount === 0}
+          sub={paperCount === 0 ? t("Contracts, insurance, warranties: Claude reminds you before they end") : t("Contracts, insurance, receipts, IDs")}
+        />
         <TravelsTile />
       </nav>
     </div>
@@ -240,4 +282,22 @@ function PapersCard({ dates }: { dates: Deadline[] }) {
       ))}
     </Link>
   );
+}
+
+// "Jenny owes you 245 kr", or all square. Dashed until the first expense.
+function ExpensesTile({ expenses }: { expenses: Pick<Expense, "amount" | "currency" | "paid_by" | "split_among" | "shares">[] | null }) {
+  const { me, memberById, locale, t } = useFamily();
+  if (expenses === null) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub="…" />;
+  if (expenses.length === 0) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub={t("One pays, the app splits")} empty />;
+  const name = (id: string) => memberById(id)?.name ?? "?";
+  const x = settleUp(expenses)[0];
+  const money = x ? fmtMoney(x.amount, x.currency, BCP47[locale]) : "";
+  const sub = !x
+    ? t("All square")
+    : x.from === me?.id
+      ? t("You owe {to} {amount}", { to: name(x.to), amount: money })
+      : x.to === me?.id
+        ? t("{from} owes you {amount}", { from: name(x.from), amount: money })
+        : t("{from} owes {to} {amount}", { from: name(x.from), to: name(x.to), amount: money });
+  return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub={sub} />;
 }

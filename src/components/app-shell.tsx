@@ -16,14 +16,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
+  // Home holds what the family shares (brain, expenses, papers, travels); Me what is mine.
+  const HOME = ["/brain", "/expenses", "/papers", "/travels"];
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
   // The Me tab is my own space; settings hang off the avatar, top right.
-  const HOME = ["/brain", "/papers", "/travels"];
   const ME = ["/me", "/work"];
   const SETTINGS = ["/settings", "/profile", "/connections", "/admin", "/feedback", "/stats"];
   const inSettings = SETTINGS.some((p) => pathname.startsWith(p));
+  const under = (paths: string[]) => paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" || HOME.some((p) => pathname.startsWith(p)) : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
+    href === "/me"
+      ? under(ME)
+      : href === "/"
+        ? pathname === "/" || (under(HOME) && !under(ME))
+        : href === "/calendar"
+          ? under(["/calendar", "/todo"])
+          : href === "/lists"
+            ? under(KITCHEN)
+            : under([href]);
 
   // The Kids tab only shows up for families with a child, in the middle.
   const tabs = [
