@@ -14,7 +14,8 @@ import { addDays, dayKey, daysUntil, fmtDate, startOfDay } from "@/lib/dates";
 import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
-import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, RestockSuggestion } from "@/lib/types";
+import { deadlineText, inDays, upcomingDeadlines, type Deadline } from "@/lib/papers";
+import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
 
 const TravelsTile = dynamic(() => import("@/components/travels-tile"), {
   ssr: false,
@@ -34,6 +35,8 @@ export default function HomePage() {
   // Optional parts show dashed until someone fills them in.
   const [mealCount, setMealCount] = useState<number | null>(null);
   const [noteCount, setNoteCount] = useState<number | null>(null);
+  const [paperDates, setPaperDates] = useState<Deadline[]>([]);
+  const [paperCount, setPaperCount] = useState<number | null>(null);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -74,6 +77,14 @@ export default function HomePage() {
       .select("*")
       .order("next_due_on")
       .then(({ data }) => setRestock(((data ?? []) as RestockSuggestion[]).filter((r) => daysUntil(r.next_due_on) <= 3)));
+    supabase
+      .from("papers")
+      .select("*")
+      .eq("ended", false)
+      .then(({ data }) => {
+        setPaperCount(data?.length ?? 0);
+        setPaperDates(upcomingDeadlines((data ?? []) as Paper[], 30));
+      });
     return () => {
       supabase.removeChannel(channel);
     };
@@ -125,7 +136,10 @@ export default function HomePage() {
       </section>
 
       <SoonCard occasions={occasions} meId={me?.id} />
+      <PapersCard dates={paperDates} />
 
+      {/* Home is also where everything the family shares lives; Me is only mine. */}
+      <h2 className="h2 -mb-2">{t("Family")}</h2>
       <nav className="grid grid-cols-2 gap-3">
         <HubTile
           href="/todo"
@@ -161,6 +175,13 @@ export default function HomePage() {
                 ? t("Birthdays, weddings, preschool address: what Claude should know")
                 : [occasions.length === 1 ? t("1 date") : t("{n} dates", { n: occasions.length }), noteCount === 1 ? t("1 note") : t("{n} notes", { n: noteCount })].join(" · ")
           }
+        />
+        <HubTile
+          href="/papers"
+          module="papers"
+          title={t("Papers")}
+          empty={paperCount === 0}
+          sub={paperCount === 0 ? t("Contracts, insurance, warranties: Claude reminds you before they end") : t("Contracts, insurance, receipts, IDs")}
         />
         <TravelsTile />
       </nav>
@@ -228,6 +249,27 @@ function SoonCard({ occasions, meId }: { occasions: Occasion[]; meId?: string })
         <p key={o.id} className="text-sm">
           {OCCASION_EMOJI[o.kind]} <span className="font-medium">{o.title}</span>{" "}
           <span className="text-muted">· {occasionLabel(t, o.kind, years)} · {whenLabel(t, daysAway(day), day)}</span>
+        </p>
+      ))}
+    </Link>
+  );
+}
+
+// Papers with a deadline in the next 30 days (last day to cancel, an ID
+// expiring). My private ones are not named here: someone may be looking.
+function PapersCard({ dates }: { dates: Deadline[] }) {
+  const { t } = useFamily();
+  if (!dates.length) return null;
+  return (
+    <Link href="/papers" className="card flex flex-col gap-1">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">{t("Papers")}</h2>
+        <span className="text-muted">→</span>
+      </div>
+      {dates.map((d) => (
+        <p key={`${d.paper.id}-${d.kind}`} className="text-sm">
+          <span className="font-medium">{deadlineText(t, d, d.paper.profile_id ? t("A private paper") : d.paper.title)}</span>{" "}
+          <span className="text-muted">· {inDays(t, d.days)}</span>
         </p>
       ))}
     </Link>

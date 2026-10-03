@@ -16,11 +16,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
-  // Home holds what the family shares (brain, travels map); Me what is mine.
-  const HOME = ["/brain", "/travels"];
+  // Home holds what the family shares (brain, papers, travels); Me what is mine.
+  const HOME = ["/brain", "/papers", "/travels"];
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
   // The Me tab is my own space; settings hang off the avatar, top right.
-  const ME = ["/me", "/work", "/travels/timeline"];
+  const ME = ["/me", "/work"];
   const SETTINGS = ["/settings", "/profile", "/connections", "/admin", "/feedback", "/stats"];
   const inSettings = SETTINGS.some((p) => pathname.startsWith(p));
   const under = (paths: string[]) => paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));

@@ -1,25 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useFamily } from "@/components/family-context";
-import { HubTile } from "@/components/hub-tile";
 import { PageHeader } from "@/components/page-header";
 import { PrivateSpace } from "@/components/private-space";
 
-// Me: my own space — private tiles (lists, notes, gifts, work) and my trips.
-// The family brain is shared, so it lives on Home. Settings live behind the
+// Me: what's only mine — private tiles (lists, notes, gifts, work). What the
+// family shares (brain, papers) is on Home. Settings live behind the
 // avatar, top right (/settings).
 export default function MePage() {
-  const { supabase, profile, me, t } = useFamily();
-  const [trips, setTrips] = useState<number | null>(null);
-  useEffect(() => {
-    if (!me) return;
-    supabase
-      .from("trips")
-      .select("id", { count: "exact", head: true })
-      .contains("member_ids", [me.id])
-      .then(({ count }) => setTrips(count ?? 0));
-  }, [supabase, me]);
+  const { profile, me, t } = useFamily();
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -34,16 +23,6 @@ export default function MePage() {
       />
 
       <PrivateSpace />
-
-      <nav className="grid grid-cols-2 gap-3">
-        <HubTile
-          href="/travels/timeline"
-          module="travels"
-          title={t("My trips")}
-          empty={trips === 0}
-          sub={trips ? (trips === 1 ? t("1 trip") : t("{n} trips", { n: trips })) : t("Where, when, with whom")}
-        />
-      </nav>
 
     </div>
   );

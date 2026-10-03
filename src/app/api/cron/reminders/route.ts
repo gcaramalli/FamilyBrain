@@ -9,9 +9,10 @@ import { addDays, dayKey, startOfDay } from "@/lib/dates";
 import { fetchOccurrences } from "@/lib/events";
 import { isLocale, translator } from "@/lib/i18n";
 import { familyBirthdays, fetchOccasions, nextAnniversary, OCCASION_EMOJI, occasionLabel } from "@/lib/occasions";
+import { deadlineText, deadlines, inDays, REMIND_DAYS, todayKey } from "@/lib/papers";
 import { pushEnabled, sendPush } from "@/lib/push";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { EventOccurrence, Member } from "@/lib/types";
+import type { EventOccurrence, Member, Paper } from "@/lib/types";
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
 
@@ -27,12 +28,17 @@ export async function GET(req: Request) {
   let sent = 0;
 
   for (const { id: familyId } of families ?? []) {
-    const [{ data: members }, { data: profiles }, events, occasions] = await Promise.all([
+    const [{ data: members }, { data: profiles }, events, occasions, { data: papers }] = await Promise.all([
       db.from("members").select("*").eq("family_id", familyId),
       db.from("profiles").select("id, locale").eq("family_id", familyId),
       fetchOccurrences(db, tomorrow, addDays(tomorrow, 1), familyId),
       fetchOccasions(db, familyId),
+      db.from("papers").select("*").eq("family_id", familyId).eq("ended", false),
     ]);
+    // Papers: last day to cancel, expiry, end of warranty, 30 / 7 / 1 days ahead.
+    const paperDates = ((papers ?? []) as Paper[])
+      .flatMap((p) => deadlines(p, todayKey()))
+      .filter((d) => REMIND_DAYS.includes(d.days));
     // Weddings and birthdays whose anniversary is tomorrow and still celebrated.
     const dates = [...occasions, ...familyBirthdays((members ?? []) as Member[])]
       .filter((o) => !o.ended)
@@ -68,12 +74,16 @@ export async function GET(req: Request) {
       const celebrate = dates
         .filter(({ o }) => !o.member_ids.length || o.member_ids.includes(adult.id))
         .map(({ o, years }) => `${OCCASION_EMOJI[o.kind]} ${o.title} · ${occasionLabel(t, o.kind, years)}${o.ours ? "" : ` · ${t("send them a message")}`}`);
-      if (!mine.length && !nobody.length && !celebrate.length) continue;
+      // The family's papers to every parent, private ones to their owner only (not named on the lock screen).
+      const paperwork = paperDates
+        .filter((d) => !d.paper.profile_id || d.paper.profile_id === adult.profile_id)
+        .map((d) => `📄 ${deadlineText(t, d, d.paper.profile_id ? t("A private paper") : d.paper.title)} · ${inDays(t, d.days)}`);
+      if (!mine.length && !nobody.length && !celebrate.length && !paperwork.length) continue;
 
       sent += await sendPush(adult.profile_id!, {
         title: nobody.length ? `⚠️ ${t("Tomorrow")}` : t("Tomorrow"),
-        body: [...mine, ...nobody, ...celebrate].join("\n"),
-        url: nobody.length ? "/kids/preschool" : mine.length ? "/" : "/brain?tab=dates",
+        body: [...mine, ...nobody, ...celebrate, ...paperwork].join("\n"),
+        url: nobody.length ? "/kids/preschool" : mine.length ? "/" : celebrate.length ? "/brain?tab=dates" : "/papers",
         tag: `evening-${key}`,
       });
     }

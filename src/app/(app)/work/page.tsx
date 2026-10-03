@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmButton } from "@/components/confirm-button";
 import { useFamily } from "@/components/family-context";
 import { PageHeader } from "@/components/page-header";
+import { PinGate } from "@/components/pin-lock";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { dayKey, fmtDate } from "@/lib/dates";
@@ -30,7 +31,27 @@ const weekdayName = (n: number) => fmtDate(new Date(Date.UTC(2024, 0, n, 12)), {
 const compact = (name: string) => name.replace(/\s+/g, "");
 const clean = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+// The Work tile can be locked behind my code (Me → Private → lock).
 export default function WorkPage() {
+  const { supabase } = useFamily();
+  const [locked, setLocked] = useState<boolean | null>(null);
+  useEffect(() => {
+    supabase
+      .from("private_boards")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "work")
+      .eq("locked", true)
+      .then(({ count }) => setLocked((count ?? 0) > 0));
+  }, [supabase]);
+  if (locked === null) return null;
+  return (
+    <PinGate locked={locked}>
+      <WorkSpace />
+    </PinGate>
+  );
+}
+
+function WorkSpace() {
   const { supabase, profile, t } = useFamily();
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState<Tab>("me");
