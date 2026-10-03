@@ -13,6 +13,7 @@ import { ageInMonths } from "@/lib/dates";
 import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
 import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
 import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems, sortItems } from "@/lib/work";
+import { settleUp } from "@/lib/expenses";
 import { deadlines, nextRenewal, PAPER_CATEGORIES, PAPER_CATEGORY_IDS, PERIOD_IDS, upcomingDeadlines, yearlyCost } from "@/lib/papers";
 import type { KidClothes, KidSleep, Paper, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
@@ -77,6 +78,10 @@ Routing:
   cover paid twice (e.g. travel or accident cover already inside the home insurance), gaps for the household (e.g. a child
   insurance for each kid), contracts to renegotiate or cancel before their last day, and the yearly total; give concrete
   next steps, say it's not a broker's advice, and search the web for current prices only if the user asks to compare.
+- Shared expenses ("I paid 89 kr for toilet paper", "Jenny paid the plumber 1 200", "who owes whom?", "Jenny paid me
+  back"): add_expense (paid_by defaults to the speaker, split equally between the adults unless told otherwise; a
+  payback is settlement = true) / get_expenses (the balance and recent expenses). Not for groceries' restock log
+  (log_purchase) unless someone also wants to split it.
 Call get_family_context first if you don't know the lists or people. After writing, tell the user exactly what you added and where.`;
 }
 
@@ -1854,6 +1859,81 @@ export function registerTools(server: McpServer) {
       const { error } = await db.from("papers").update({ ...row, updated_at: new Date().toISOString() }).eq("id", hit.id).eq("family_id", familyId());
       if (error) throw new Error(error.message);
       return text(`Updated "${hit.title}": ${Object.keys(row).join(", ")}.`);
+    },
+  );
+
+  server.registerTool(
+    "add_expense",
+    {
+      title: "Log a shared expense",
+      description:
+        "Log something one adult paid for the family (Home → Expenses); the app splits it equally between split_among (default: every adult with an account) and keeps who owes whom. settlement = true logs a payback instead: paid_by gave the amount to the single person in split_among. Returns the new balance.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(200).describe("Short, e.g. 'Toilet paper', 'Plumber'"),
+        amount: z.number().positive(),
+        currency: z.string().length(3).optional().describe("Default SEK"),
+        paid_by: z.string().optional().describe("First name; default the speaker"),
+        split_among: z.array(z.string()).optional().describe("First names it was for; default all adults"),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("YYYY-MM-DD, default today"),
+        settlement: z.boolean().optional(),
+      }),
+    },
+    async ({ title, amount, currency, paid_by, split_among, date, settlement }) => {
+      const db = createAdminClient();
+      const { data: people } = await db.from("members").select("id, name, profile_id").eq("family_id", familyId());
+      const adults = (people ?? []).filter((m) => m.profile_id);
+      const owner = mcpContext.getStore()?.profileId;
+      const payer = paid_by ? await memberIdByName(paid_by) : adults.find((m) => m.profile_id === owner)?.id;
+      if (!payer) throw new Error(`Who paid? Adults: ${adults.map((m) => m.name).join(", ")}`);
+      const among = split_among?.length ? await Promise.all(split_among.map((n) => memberIdByName(n) as Promise<string>)) : adults.map((m) => m.id);
+      if (settlement && among.length !== 1) throw new Error("A payback goes to exactly one person: set split_among to them.");
+      const { error } = await db.from("expenses").insert({
+        family_id: familyId(),
+        title: settlement ? "Paid back" : title.trim(),
+        amount: Math.round(amount * 100) / 100,
+        currency: (currency ?? "SEK").toUpperCase(),
+        paid_by: payer,
+        split_among: among,
+        spent_on: date ?? workToday(),
+        settlement: !!settlement,
+        created_by: createdBy(),
+      });
+      if (error) throw new Error(error.message);
+      const { data: all } = await db.from("expenses").select("amount, currency, paid_by, split_among").eq("family_id", familyId());
+      const name = (id: string) => (people ?? []).find((m) => m.id === id)?.name ?? "?";
+      const owes = settleUp(all ?? []).map((x) => `${name(x.from)} owes ${name(x.to)} ${x.amount} ${x.currency}`);
+      return text(`Logged. Balance: ${owes.join("; ") || "all square"}.`);
+    },
+  );
+
+  server.registerTool(
+    "get_expenses",
+    {
+      title: "Shared expenses and who owes whom",
+      description: "The balance between the adults (who owes whom, to settle up) and the shared expenses of the last `days` days (default 60).",
+      inputSchema: z.object({ days: z.number().int().min(1).max(730).optional() }),
+    },
+    async ({ days }) => {
+      const db = createAdminClient();
+      const [{ data: people }, { data: all }] = await Promise.all([
+        db.from("members").select("id, name").eq("family_id", familyId()),
+        db.from("expenses").select("title, amount, currency, paid_by, split_among, spent_on, settlement").eq("family_id", familyId()).order("spent_on", { ascending: false }),
+      ]);
+      const name = (id: string) => (people ?? []).find((m) => m.id === id)?.name ?? "?";
+      const since = new Date(Date.now() - (days ?? 60) * 86400000).toISOString().slice(0, 10);
+      return text({
+        owes: settleUp(all ?? []).map((x) => ({ from: name(x.from), to: name(x.to), amount: x.amount, currency: x.currency })),
+        expenses: (all ?? [])
+          .filter((e) => e.spent_on >= since)
+          .map((e) => ({
+            date: e.spent_on,
+            title: e.settlement ? `${name(e.paid_by)} paid ${name(e.split_among[0])} back` : e.title,
+            amount: Number(e.amount),
+            currency: e.currency,
+            paid_by: name(e.paid_by),
+            for: e.split_among.map(name),
+          })),
+      });
     },
   );
 }

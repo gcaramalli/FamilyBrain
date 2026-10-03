@@ -15,7 +15,9 @@ import { groupByDay } from "@/lib/events";
 import { daysAway, fetchCalendar, fetchOccasions, OCCASION_EMOJI, occasionLabel, upcoming } from "@/lib/occasions";
 import { whenLabel } from "@/components/occasions-panel";
 import { deadlineText, inDays, upcomingDeadlines, type Deadline } from "@/lib/papers";
-import type { CareAvailability, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
+import { fmtMoney, settleUp } from "@/lib/expenses";
+import { BCP47 } from "@/lib/i18n";
+import type { CareAvailability, Expense, EventOccurrence, ListItem, Member, Occasion, Paper, RestockSuggestion } from "@/lib/types";
 
 const TravelsTile = dynamic(() => import("@/components/travels-tile"), {
   ssr: false,
@@ -37,6 +39,7 @@ export default function HomePage() {
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [paperDates, setPaperDates] = useState<Deadline[]>([]);
   const [paperCount, setPaperCount] = useState<number | null>(null);
+  const [expenses, setExpenses] = useState<Pick<Expense, "amount" | "currency" | "paid_by" | "split_among">[] | null>(null);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -77,6 +80,10 @@ export default function HomePage() {
       .select("*")
       .order("next_due_on")
       .then(({ data }) => setRestock(((data ?? []) as RestockSuggestion[]).filter((r) => daysUntil(r.next_due_on) <= 3)));
+    supabase
+      .from("expenses")
+      .select("amount, currency, paid_by, split_among")
+      .then(({ data }) => setExpenses(data ?? []));
     supabase
       .from("papers")
       .select("*")
@@ -176,6 +183,7 @@ export default function HomePage() {
                 : [occasions.length === 1 ? t("1 date") : t("{n} dates", { n: occasions.length }), noteCount === 1 ? t("1 note") : t("{n} notes", { n: noteCount })].join(" · ")
           }
         />
+        <ExpensesTile expenses={expenses} />
         <HubTile
           href="/papers"
           module="papers"
@@ -274,4 +282,22 @@ function PapersCard({ dates }: { dates: Deadline[] }) {
       ))}
     </Link>
   );
+}
+
+// "Jenny owes you 245 kr", or all square. Dashed until the first expense.
+function ExpensesTile({ expenses }: { expenses: Pick<Expense, "amount" | "currency" | "paid_by" | "split_among">[] | null }) {
+  const { me, memberById, locale, t } = useFamily();
+  if (expenses === null) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub="…" />;
+  if (expenses.length === 0) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub={t("One pays, the app splits")} empty />;
+  const name = (id: string) => memberById(id)?.name ?? "?";
+  const x = settleUp(expenses)[0];
+  const money = x ? fmtMoney(x.amount, x.currency, BCP47[locale]) : "";
+  const sub = !x
+    ? t("All square")
+    : x.from === me?.id
+      ? t("You owe {to} {amount}", { to: name(x.to), amount: money })
+      : x.to === me?.id
+        ? t("{from} owes you {amount}", { from: name(x.from), amount: money })
+        : t("{from} owes {to} {amount}", { from: name(x.from), to: name(x.to), amount: money });
+  return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub={sub} />;
 }
