@@ -854,4 +854,11 @@ export const sv: Record<string, string> = {
   "Tabs": "Flikar",
   "Hide what you don't use. Nothing is deleted.": "Dölj det du inte använder. Inget raderas.",
   "Who has something": "Vem har något",
+  "Home": "Hem",
+  "Log what you eat, Claude balances the week": "Logga vad ni äter, Claude balanserar veckan",
+  "Birthdays, weddings, preschool address: what Claude should know": "Födelsedagar, bröllop, förskolans adress: det Claude bör veta",
+  "1 date": "1 datum",
+  "{n} dates": "{n} datum",
+  "1 note": "1 anteckning",
+  "{n} notes": "{n} anteckningar",
 };

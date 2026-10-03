@@ -854,4 +854,11 @@ export const fr: Record<string, string> = {
   "Tabs": "Onglets",
   "Hide what you don't use. Nothing is deleted.": "Masque ce que tu n'utilises pas. Rien n'est supprimé.",
   "Who has something": "Qui a quelque chose",
+  "Home": "Accueil",
+  "Log what you eat, Claude balances the week": "Notez ce que vous mangez, Claude équilibre la semaine",
+  "Birthdays, weddings, preschool address: what Claude should know": "Anniversaires, mariages, adresse de la crèche : ce que Claude doit savoir",
+  "1 date": "1 date",
+  "{n} dates": "{n} dates",
+  "1 note": "1 note",
+  "{n} notes": "{n} notes",
 };

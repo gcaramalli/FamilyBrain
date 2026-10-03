@@ -21,7 +21,8 @@ const TravelsTile = dynamic(() => import("@/components/travels-tile"), {
   loading: () => <div className="card col-span-2 min-h-56" />,
 });
 
-export default function TodayPage() {
+// Home: the day at a glance, then a door to each part of the family's life.
+export default function HomePage() {
   const { supabase, profile, kids, members, me, t } = useFamily();
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [events, setEvents] = useState<EventOccurrence[]>([]);
@@ -30,6 +31,9 @@ export default function TodayPage() {
   const [todoCount, setTodoCount] = useState<number | null>(null);
   const [dueTodos, setDueTodos] = useState<ListItem[]>([]);
   const [restock, setRestock] = useState<RestockSuggestion[]>([]);
+  // Optional parts show dashed until someone fills them in.
+  const [mealCount, setMealCount] = useState<number | null>(null);
+  const [noteCount, setNoteCount] = useState<number | null>(null);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -63,6 +67,8 @@ export default function TodayPage() {
       .eq("done", false)
       .eq("lists.kind", "todo")
       .then(({ count }) => setTodoCount(count ?? 0));
+    supabase.from("meals").select("id", { count: "exact", head: true }).then(({ count }) => setMealCount(count ?? 0));
+    supabase.from("notes").select("id", { count: "exact", head: true }).then(({ count }) => setNoteCount(count ?? 0));
     supabase
       .from("restock_suggestions")
       .select("*")
@@ -136,8 +142,26 @@ export default function TodayPage() {
             (restock.length > 0 ? ` · ${t("probably running out: {items}", { items: restock.map((r) => r.item_name).join(", ") })}` : "")
           }
         />
-        <HubTile href="/meals" module="meals" title={t("Meals")} sub={t("What we ate")} />
-        <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
+        <HubTile
+          href="/meals"
+          module="meals"
+          title={t("Meals")}
+          empty={mealCount === 0}
+          sub={mealCount === 0 ? t("Log what you eat, Claude balances the week") : t("What we ate")}
+        />
+        <HubTile
+          href={noteCount === 0 && occasions.length > 0 ? "/brain?tab=dates" : "/brain"}
+          module="brain"
+          title={t("Family brain")}
+          empty={noteCount === 0 && occasions.length === 0}
+          sub={
+            noteCount === null
+              ? "…"
+              : noteCount === 0 && occasions.length === 0
+                ? t("Birthdays, weddings, preschool address: what Claude should know")
+                : [occasions.length === 1 ? t("1 date") : t("{n} dates", { n: occasions.length }), noteCount === 1 ? t("1 note") : t("{n} notes", { n: noteCount })].join(" · ")
+          }
+        />
         <TravelsTile />
       </nav>
     </div>

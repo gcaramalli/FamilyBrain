@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFamily } from "@/components/family-context";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
+import { LOCALES, translator } from "@/lib/i18n";
 import type { PrivateBoard, PrivateItem } from "@/lib/types";
 
 // Tile tints, in order: the space looks like a box of coloured cards.
@@ -74,7 +75,17 @@ export function PrivateSpace() {
     });
   }
 
-  const unused = SUGGESTED.filter((s) => !boards?.some((b) => b.title === t(s.title)));
+  // A suggestion goes away once I have that tile, whatever language it was
+  // made in ("Boulot" made in French still counts as Work in English). Work
+  // and gift tiles are recognised by their kind, lists and notes by name.
+  const unused = SUGGESTED.filter(
+    (s) =>
+      !boards?.some((b) =>
+        s.kind === "work" || s.kind === "gifts"
+          ? b.kind === s.kind
+          : LOCALES.some((l) => translator(l.id)(s.title).toLowerCase() === b.title.trim().toLowerCase()),
+      ),
+  );
 
   return (
     <section className="flex flex-col gap-3">

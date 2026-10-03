@@ -123,8 +123,9 @@ Rules of thumb:
   `src/lib/mcp/tools.ts` must filter by `familyId()`. Server env: `SUPABASE_SERVICE_ROLE_KEY` (or
   `SUPABASE_SECRET_KEY`); legacy single-family `MCP_TOKEN` + `FAMILY_ID` still accepted.
 - Schema changes: add a new numbered file in `supabase/migrations/`, never edit an applied one.
-- Navigation: five tabs, one job each — Today, Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
-  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, `/work`, `/brain`).
+- Navigation: five tabs, one job each — Home (`/`: the day, then tiles for what the family shares: to-do, shopping, meals, family brain, travels map; `/brain` and `/travels` light it up), Calendar (`/calendar` + `/todo` for to-do lists, `CalendarSegments`),
+  the kid (if any: tiles, see above), Kitchen (`/lists` = shopping lists only, `/meals`, `/recipes`, `/purchases`, see `KitchenHeader`), Me (`/me`: private tiles, `/work`, My trips `/travels/timeline`).
+  Optional parts nobody has filled in yet show as dashed tiles (`HubTile empty`, private-space suggestions) with one line on what they are for, so they advertise the feature; they turn solid once there is data. Private suggestions are matched by kind (work, gifts) or by name in any language, never by the current locale's title only.
   Settings sit behind the avatar, top right (`/settings`): personal (`/profile`), Reminders & AI (`/connections`), family (`/admin`),
   give feedback (`/feedback`), invite a friend (shares `/signup`), sign out, and for super admins Hembrain admin (`/stats`, `/stats/feedback`, `/stats/ai`, `StatsHeader`).
   Screens use `PageHeader` (title left, one main action right, `Segments` under it). Settings live next to what
