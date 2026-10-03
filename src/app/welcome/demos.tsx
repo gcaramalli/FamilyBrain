@@ -170,7 +170,7 @@ export function SleepBars({ small }: { small?: boolean }) {
   );
 }
 
-// Countries each of us has been to; stripes where both went.
+// Countries each of us has been to; ink where both went.
 const VISITS: Record<string, string[]> = {
   SE: [ALEX.color, SAM.color], FR: [ALEX.color, SAM.color], NO: [ALEX.color, SAM.color], DK: [SAM.color], DE: [ALEX.color],
   ES: [ALEX.color, SAM.color], PT: [SAM.color], IT: [ALEX.color, SAM.color], GR: [SAM.color], GB: [ALEX.color], IS: [ALEX.color, SAM.color],
@@ -183,16 +183,10 @@ export function DemoMap() {
   const fill = (code: string) => {
     const c = VISITS[code];
     if (!c) return "var(--map-land)";
-    return c.length > 1 ? "url(#landing-both)" : c[0];
+    return c.length > 1 ? "var(--foreground)" : c[0];
   };
   return (
     <svg viewBox={`0 0 ${world.width} 372`} className="h-auto w-full" role="img" aria-label="World map">
-      <defs>
-        <pattern id="landing-both" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="4" height="8" fill={ALEX.color} />
-          <rect x="4" width="4" height="8" fill={SAM.color} />
-        </pattern>
-      </defs>
       {Object.entries(shapes).map(([code, d]) => (
         <path key={code} d={d} fill={fill(code)} stroke="var(--surface)" strokeWidth={0.7} />
       ))}

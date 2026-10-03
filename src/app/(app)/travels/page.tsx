@@ -78,8 +78,8 @@ export default function TravelsPage() {
         ))}
       </div>
 
-      {members.length > 1 && (
-        <p className="text-xs text-muted">{t("Each person has their colour; stripes = several of us have been there.")}</p>
+      {focus === null && members.filter((m) => m.profile_id).length > 1 && (
+        <p className="text-xs text-muted">{t("Each person has their colour; ink = we've both been there.")}</p>
       )}
 
       <section className="card p-0">

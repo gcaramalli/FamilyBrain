@@ -896,7 +896,7 @@ export const fr: Record<string, string> = {
   "{name}: {country} removed": "{name} : {country} retiré",
   "Travels": "Voyages",
   "Countries": "Pays",
-  "Each person has their colour; stripes = several of us have been there.": "Chacun sa couleur ; rayures = plusieurs d'entre nous y sont allés.",
+  "Each person has their colour; ink = we've both been there.": "Chacun sa couleur ; encre = on y est allés tous les deux.",
   "{n} countries": "{n} pays",
   "Paste the list of countries you've been to, in any language.": "Colle la liste des pays où tu es allé, dans n'importe quelle langue.",
   "World": "Monde",
