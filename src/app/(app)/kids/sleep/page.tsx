@@ -172,7 +172,8 @@ export default function SleepPage() {
         <span>{t("Ask Claude “when should {name} go to bed tonight?”: it reads the last days here.", { name: kid.name })}</span>
       </p>
 
-      {days.map((d) => (
+      {/* The log reads like a diary: oldest day first, each day in order. */}
+      {[...days].reverse().map((d) => (
         <section key={d.day}>
           <h3 className="flex items-baseline justify-between text-sm font-medium text-muted">
             <span className="capitalize">{fmtDate(new Date(d.day + "T12:00:00"), { weekday: "long", day: "numeric", month: "short" })}</span>
