@@ -18,15 +18,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Five tabs, one job each. Sub-pages light up the tab they belong to.
   const KITCHEN = ["/lists", "/meals", "/recipes", "/purchases"];
   // The Me tab is my own space; settings hang off the avatar, top right.
-  const ME = ["/me", "/brain", "/work"];
+  const HOME = ["/brain", "/papers", "/travels"];
+  const ME = ["/me", "/work"];
   const SETTINGS = ["/settings", "/profile", "/connections", "/admin", "/feedback", "/stats"];
   const inSettings = SETTINGS.some((p) => pathname.startsWith(p));
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
+    href === "/" ? pathname === "/" || HOME.some((p) => pathname.startsWith(p)) : href === "/calendar" ? ["/calendar", "/todo"].some((p) => pathname.startsWith(p)) : href === "/lists" ? KITCHEN.some((p) => pathname.startsWith(p)) : href === "/me" ? ME.some((p) => pathname.startsWith(p)) : pathname.startsWith(href);
 
   // The Kids tab only shows up for families with a child, in the middle.
   const tabs = [
-    { href: "/", label: t("Today"), Icon: MODULES.today.Icon, color: MODULES.today.color },
+    { href: "/", label: t("Home"), Icon: MODULES.today.Icon, color: MODULES.today.color },
     { href: "/calendar", label: t("Calendar"), Icon: MODULES.calendar.Icon, color: MODULES.calendar.color },
     ...(kids.length
       ? [

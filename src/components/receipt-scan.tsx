@@ -10,7 +10,7 @@ type Line = { name: string; quantity: string | null; price: number | null; keep:
 type Result = { store: string | null; date: string | null; items: Line[] };
 
 // Phones take 4–12 MB photos; a 1600 px JPEG is plenty to read a receipt.
-async function shrink(file: File): Promise<Blob> {
+export async function shrink(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");

@@ -52,7 +52,7 @@ export default function TravelsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <TravelsHeader back="/" backLabel={t("Today")} action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Countries")}</button>} />
+      <TravelsHeader back="/" backLabel={t("Home")} action={<button className="btn" onClick={() => setAdding(true)}>+ {t("Countries")}</button>} />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         <button className={`chip-toggle ${focus === null ? "chip-on" : ""}`} onClick={() => setFocus(null)}>

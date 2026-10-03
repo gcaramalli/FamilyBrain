@@ -1,12 +1,12 @@
 "use client";
 
 import { useFamily } from "@/components/family-context";
-import { HubTile } from "@/components/hub-tile";
 import { PageHeader } from "@/components/page-header";
 import { PrivateSpace } from "@/components/private-space";
 
-// Me: my own space — private tiles (lists, notes, gifts, work) and the
-// family brain. Settings live behind the avatar, top right (/settings).
+// Me: what's only mine — private tiles (lists, notes, gifts, work). What the
+// family shares (brain, papers) is on Home. Settings live behind the
+// avatar, top right (/settings).
 export default function MePage() {
   const { profile, me, t } = useFamily();
   return (
@@ -23,11 +23,6 @@ export default function MePage() {
       />
 
       <PrivateSpace />
-
-      <nav className="grid grid-cols-2 gap-3">
-        <HubTile href="/brain" module="brain" title={t("Family brain")} sub={t("Notes and dates worth remembering")} />
-        <HubTile href="/travels/timeline" module="travels" title={t("My trips")} sub={t("Where, when, with whom")} />
-      </nav>
 
     </div>
   );

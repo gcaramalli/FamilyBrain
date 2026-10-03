@@ -67,7 +67,7 @@ export default function TimelinePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <TravelsHeader back="/me" backLabel={t("Me")} action={<button className="btn" onClick={() => setEditing(blank())}>+ {t("Trip")}</button>} />
+      <TravelsHeader back="/" backLabel={t("Home")} action={<button className="btn" onClick={() => setEditing(blank())}>+ {t("Trip")}</button>} />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {members.map((m) => (
