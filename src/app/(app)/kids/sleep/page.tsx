@@ -172,8 +172,8 @@ export default function SleepPage() {
         <span>{t("Ask Claude “when should {name} go to bed tonight?”: it reads the last days here.", { name: kid.name })}</span>
       </p>
 
-      {/* The log reads like a diary: oldest day first, each day in order. */}
-      {[...days].reverse().map((d) => (
+      {/* Newest first, days and the entries within each day alike. */}
+      {days.map((d) => (
         <section key={d.day}>
           <h3 className="flex items-baseline justify-between text-sm font-medium text-muted">
             <span className="capitalize">{fmtDate(new Date(d.day + "T12:00:00"), { weekday: "long", day: "numeric", month: "short" })}</span>
@@ -182,7 +182,7 @@ export default function SleepPage() {
           <ul className="divide-y divide-border">
             {entries
               .filter((e) => (e.kind === "night" ? nightDay(e.starts_at, localDay) : localDay(e.starts_at)) === d.day)
-              .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+              .sort((a, b) => b.starts_at.localeCompare(a.starts_at))
               .map((e) => (
                 <li key={e.id}>
                   <button className="flex min-h-12 w-full items-center gap-3 py-2 text-left" onClick={() => setEditing(e)}>
