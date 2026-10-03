@@ -51,7 +51,7 @@ Priorities as of 2026-09-26. Build one batch at a time. The direction behind the
 - [ ] Breastfeeding / bottle log for newborns (Food tile)
 
 ## 5b. Money
-- [x] Shared expenses between the parents (who paid, split, who owes whom, settle up); connector `add_expense` / `get_expenses`
+- [x] Shared expenses between the parents (who paid, usual split 50/50 or set per family, adjust per expense, who owes whom, settle up); connector `add_expense` / `get_expenses`
 
 ## 6. If Hembrain becomes a product (Sweden)
 - [x] Swedish, French and English UI, language per account

@@ -7,27 +7,39 @@ import { PageHeader } from "@/components/page-header";
 import { Sheet } from "@/components/sheet";
 import { useToast } from "@/components/toast";
 import { dayKey, fmtDate } from "@/lib/dates";
-import { fmtMoney, settleUp } from "@/lib/expenses";
+import { fmtMoney, isEqual, ratioLabel, settleUp } from "@/lib/expenses";
 import { BCP47 } from "@/lib/i18n";
 import type { Expense } from "@/lib/types";
 
-type Draft = { id?: string; title: string; amount: string; paid_by: string; split_among: string[]; spent_on: string };
+type Shares = Record<string, number>;
+// How an expense is split: equally, the family's usual split, or amounts typed by hand.
+type Mode = "equal" | "family" | "other";
+type Draft = { id?: string; title: string; amount: string; paid_by: string; spent_on: string; mode: Mode; other: Record<string, string> };
 
 // Shared expenses, a small Tricount: one of us pays for the family, the app
 // splits it and says who owes whom. Paying back is logged as a settlement.
+// Logging is quick (what, how much, who paid) and uses the family's usual
+// split (50/50 unless set); tapping an expense adjusts it with three buttons.
 export default function ExpensesPage() {
   const { supabase, members, me, locale, t } = useFamily();
   const toast = useToast();
   const [rows, setRows] = useState<Expense[] | null>(null);
   const [editing, setEditing] = useState<Draft | null>(null);
+  const [usual, setUsual] = useState<Shares | null>(null); // null = 50/50
+  const [setting, setSetting] = useState<Record<string, string> | null>(null);
   // Only the adults (accounts) pay and share; a kid's nappies are split between the parents.
   const adults = members.filter((m) => m.profile_id);
   const name = (id: string) => members.find((m) => m.id === id)?.name ?? "?";
   const money = (n: number, cur: string) => fmtMoney(n, cur, BCP47[locale]);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from("expenses").select("*").order("spent_on", { ascending: false }).order("created_at", { ascending: false });
+    const [{ data }, { data: st }] = await Promise.all([
+      supabase.from("expenses").select("*").order("spent_on", { ascending: false }).order("created_at", { ascending: false }),
+      supabase.from("expense_settings").select("shares").maybeSingle(),
+    ]);
     setRows((data ?? []) as Expense[]);
+    const sh = (st?.shares ?? {}) as Shares;
+    setUsual(Object.keys(sh).length ? sh : null);
   }, [supabase]);
 
   useEffect(() => {
@@ -38,20 +50,55 @@ export default function ExpensesPage() {
     };
   }, [supabase, load]);
 
-  const fresh = (): Draft => ({ title: "", amount: "", paid_by: me?.id ?? adults[0]?.id ?? "", split_among: adults.map((m) => m.id), spent_on: dayKey(new Date()) });
+  const ids = adults.map((m) => m.id);
+  const familyUneven = !isEqual(usual, ids);
   const amountOf = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
+  const fresh = (): Draft => ({ title: "", amount: "", paid_by: me?.id ?? ids[0] ?? "", spent_on: dayKey(new Date()), mode: familyUneven ? "family" : "equal", other: {} });
+
+  // The draft's split as stored: null (equal between the adults) or weights.
+  function sharesOf(d: Draft): Shares | null {
+    if (d.mode === "family" && familyUneven && usual) return usual;
+    if (d.mode === "other") return Object.fromEntries(ids.map((id) => [id, Math.max(0, amountOf(d.other[id] ?? "") || 0)]));
+    return null;
+  }
+  const otherLeft = (d: Draft) => Math.round((amountOf(d.amount) - ids.reduce((a, id) => a + (amountOf(d.other[id] ?? "") || 0), 0)) * 100) / 100;
+  const valid = (d: Draft) => !!d.title.trim() && amountOf(d.amount) > 0 && (d.mode !== "other" || (otherLeft(d) === 0 && ids.some((id) => amountOf(d.other[id] ?? "") > 0)));
+
+  function toDraft(r: Expense): Draft {
+    const mode: Mode = !r.shares ? "equal" : familyUneven && usual && ids.every((id) => (r.shares![id] ?? 0) === (usual[id] ?? 0)) ? "family" : "other";
+    const other: Record<string, string> = {};
+    if (mode === "other") {
+      // Show each person's part in kr, whatever the weights were.
+      const sum = Object.values(r.shares!).reduce((a, b) => a + b, 0) || 1;
+      for (const id of ids) other[id] = String(Math.round(((r.shares![id] ?? 0) * Number(r.amount) * 100) / sum) / 100);
+    }
+    return { id: r.id, title: r.title, amount: String(r.amount), paid_by: r.paid_by, spent_on: r.spent_on, mode, other };
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!editing) return;
-    const amount = amountOf(editing.amount);
-    if (!editing.title.trim() || !(amount > 0) || !editing.split_among.length) return;
-    const fields = { title: editing.title.trim(), amount, paid_by: editing.paid_by, split_among: editing.split_among, spent_on: editing.spent_on };
+    if (!editing || !valid(editing)) return;
+    const shares = sharesOf(editing);
+    const fields = {
+      title: editing.title.trim(),
+      amount: amountOf(editing.amount),
+      paid_by: editing.paid_by,
+      spent_on: editing.spent_on,
+      shares,
+      split_among: shares ? ids.filter((id) => shares[id] > 0) : ids,
+    };
     if (editing.id) await supabase.from("expenses").update(fields).eq("id", editing.id);
     else await supabase.from("expenses").insert(fields);
     setEditing(null);
     load();
   }
+
+  async function saveUsual(next: Shares | null) {
+    await supabase.from("expense_settings").upsert({ shares: next ?? {}, updated_at: new Date().toISOString() });
+    setSetting(null);
+    load();
+  }
+  const settingLeft = (x: Record<string, string>) => 100 - ids.reduce((a, id) => a + (amountOf(x[id] ?? "") || 0), 0);
 
   async function remove(id: string) {
     const before = rows?.find((r) => r.id === id);
@@ -111,6 +158,14 @@ export default function ExpensesPage() {
             ))
           )}
           <p className="text-sm text-muted">{t("Spent this month: {amount}", { amount: money(spentThisMonth, "SEK") })}</p>
+          {ids.length > 1 && (
+            <button
+              className="self-start text-sm text-muted underline"
+              onClick={() => setSetting(Object.fromEntries(ids.map((id) => [id, String(Math.round((usual ? ((usual[id] ?? 0) * 100) / (Object.values(usual).reduce((a, b) => a + b, 0) || 1) : 100 / ids.length)))])))}
+            >
+              {t("Usual split: {ratio}", { ratio: familyUneven ? `${ratioLabel(usual, ids)} (${adults.map((m) => m.name).join("/")})` : ratioLabel(null, ids) })}
+            </button>
+          )}
         </section>
       )}
 
@@ -131,7 +186,7 @@ export default function ExpensesPage() {
                   onClick={() =>
                     r.settlement
                       ? remove(r.id)
-                      : setEditing({ id: r.id, title: r.title, amount: String(r.amount), paid_by: r.paid_by, split_among: r.split_among, spent_on: r.spent_on })
+                      : setEditing(toDraft(r))
                   }
                   aria-label={r.settlement ? t("Undo this payback") : undefined}
                 >
@@ -142,7 +197,8 @@ export default function ExpensesPage() {
                     <span className="flex items-center gap-2 text-sm text-muted">
                       {fmtDate(new Date(`${r.spent_on}T12:00:00`), { day: "numeric", month: "short" })}
                       {!r.settlement && <MemberBadge id={r.paid_by} />}
-                      {!r.settlement && r.split_among.length < adults.length && <span>· {t("for {names}", { names: r.split_among.map(name).join(", ") })}</span>}
+                      {!r.settlement && r.split_among.length < ids.length && <span>· {t("for {names}", { names: r.split_among.map(name).join(", ") })}</span>}
+                      {!r.settlement && r.split_among.length === ids.length && r.shares && !isEqual(r.shares, ids) && <span>· {ratioLabel(r.shares, ids)}</span>}
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold tabular-nums">{money(Number(r.amount), r.currency)}</span>
@@ -169,25 +225,98 @@ export default function ExpensesPage() {
                 </button>
               ))}
             </div>
-            <p className="text-sm font-medium">{t("Split between")}</p>
-            <div className="flex flex-wrap gap-2">
-              {adults.map((m) => {
-                const on = editing.split_among.includes(m.id);
-                return (
-                  <button
-                    type="button"
-                    key={m.id}
-                    className={`chip-toggle ${on ? "chip-on" : ""}`}
-                    onClick={() => setEditing({ ...editing, split_among: on ? editing.split_among.filter((x) => x !== m.id) : [...editing.split_among, m.id] })}
-                  >
-                    {m.name}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Logging is quick: the usual split applies. Adjust it by opening the expense. */}
+            {!editing.id ? (
+              ids.length > 1 && <p className="text-xs text-muted">{t("Split {ratio}, change it later by tapping the expense.", { ratio: familyUneven ? ratioLabel(usual, ids) : ratioLabel(null, ids) })}</p>
+            ) : (
+              ids.length > 1 && (
+                <>
+                  <p className="text-sm font-medium">{t("Split")}</p>
+                  <div className={`grid ${familyUneven ? "grid-cols-3" : "grid-cols-2"} rounded-full bg-accent-soft p-1 text-sm`}>
+                    {(["equal", ...(familyUneven ? ["family" as const] : []), "other"] as Mode[]).map((m) => (
+                      <button
+                        type="button"
+                        key={m}
+                        onClick={() =>
+                          setEditing({
+                            ...editing,
+                            mode: m,
+                            // "Other" starts from an even split the person then edits.
+                            other: m === "other" && !Object.keys(editing.other).length ? Object.fromEntries(ids.map((id) => [id, String(Math.round((amountOf(editing.amount) * 100) / ids.length) / 100)])) : editing.other,
+                          })
+                        }
+                        className={`min-h-9 rounded-full ${editing.mode === m ? "bg-[var(--pill)] font-semibold shadow-sm" : "text-muted"}`}
+                      >
+                        {m === "equal" ? ratioLabel(null, ids) : m === "family" ? ratioLabel(usual, ids) : t("Other")}
+                      </button>
+                    ))}
+                  </div>
+                  {editing.mode === "other" && (
+                    <div className="flex flex-col gap-2">
+                      {adults.map((m) => (
+                        <label key={m.id} className="flex items-center gap-3">
+                          <span className="w-24 truncate text-sm">{m.name}</span>
+                          <input
+                            className="input"
+                            inputMode="decimal"
+                            value={editing.other[m.id] ?? ""}
+                            onChange={(e) => {
+                              const other = { ...editing.other, [m.id]: e.target.value };
+                              // With two of us, the other part fills itself in.
+                              if (ids.length === 2) {
+                                const rest = ids.find((id) => id !== m.id)!;
+                                other[rest] = String(Math.max(0, Math.round((amountOf(editing.amount) - (amountOf(e.target.value) || 0)) * 100) / 100));
+                              }
+                              setEditing({ ...editing, other });
+                            }}
+                          />
+                        </label>
+                      ))}
+                      {otherLeft(editing) !== 0 && <p className="text-xs text-danger">{t("{amount} left to share out", { amount: money(otherLeft(editing), "SEK") })}</p>}
+                    </div>
+                  )}
+                </>
+              )
+            )}
             <div className="flex gap-2">
-              <button className="btn flex-1" disabled={!editing.title.trim() || !(amountOf(editing.amount) > 0) || !editing.split_among.length}>{t("Save")}</button>
+              <button className="btn flex-1" disabled={!valid(editing)}>{t("Save")}</button>
               {editing.id && <button type="button" className="btn-ghost text-danger" onClick={() => remove(editing.id!)}>{t("Delete")}</button>}
+            </div>
+          </form>
+        )}
+      </Sheet>
+      <Sheet open={!!setting} onClose={() => setSetting(null)} title={t("Usual split")}>
+        {setting && (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (settingLeft(setting) !== 0) return;
+              const next = Object.fromEntries(ids.map((id) => [id, amountOf(setting[id] ?? "") || 0]));
+              saveUsual(isEqual(next, ids) ? null : next);
+            }}
+          >
+            <p className="text-sm text-muted">{t("Used for each new expense. Past ones keep their split.")}</p>
+            {adults.map((m) => (
+              <label key={m.id} className="flex items-center gap-3">
+                <span className="w-24 truncate text-sm">{m.name}</span>
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  value={setting[m.id] ?? ""}
+                  onChange={(e) => {
+                    const next = { ...setting, [m.id]: e.target.value };
+                    if (ids.length === 2) next[ids.find((id) => id !== m.id)!] = String(Math.max(0, 100 - (amountOf(e.target.value) || 0)));
+                    setSetting(next);
+                  }}
+                />
+                <span className="text-sm text-muted">%</span>
+              </label>
+            ))}
+            {settingLeft(setting) !== 0 && <p className="text-xs text-danger">{t("The total must be 100%")}</p>}
+            <div className="flex gap-2">
+              <button className="btn flex-1" disabled={settingLeft(setting) !== 0}>{t("Save")}</button>
+              <button type="button" className="btn-ghost" onClick={() => saveUsual(null)}>{ratioLabel(null, ids)}</button>
             </div>
           </form>
         )}

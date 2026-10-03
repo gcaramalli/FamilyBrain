@@ -39,7 +39,7 @@ export default function HomePage() {
   const [noteCount, setNoteCount] = useState<number | null>(null);
   const [paperDates, setPaperDates] = useState<Deadline[]>([]);
   const [paperCount, setPaperCount] = useState<number | null>(null);
-  const [expenses, setExpenses] = useState<Pick<Expense, "amount" | "currency" | "paid_by" | "split_among">[] | null>(null);
+  const [expenses, setExpenses] = useState<Pick<Expense, "amount" | "currency" | "paid_by" | "split_among" | "shares">[] | null>(null);
 
   const loadEvents = useCallback(async () => {
     const today = startOfDay(new Date());
@@ -82,7 +82,7 @@ export default function HomePage() {
       .then(({ data }) => setRestock(((data ?? []) as RestockSuggestion[]).filter((r) => daysUntil(r.next_due_on) <= 3)));
     supabase
       .from("expenses")
-      .select("amount, currency, paid_by, split_among")
+      .select("amount, currency, paid_by, split_among, shares")
       .then(({ data }) => setExpenses(data ?? []));
     supabase
       .from("papers")
@@ -285,7 +285,7 @@ function PapersCard({ dates }: { dates: Deadline[] }) {
 }
 
 // "Jenny owes you 245 kr", or all square. Dashed until the first expense.
-function ExpensesTile({ expenses }: { expenses: Pick<Expense, "amount" | "currency" | "paid_by" | "split_among">[] | null }) {
+function ExpensesTile({ expenses }: { expenses: Pick<Expense, "amount" | "currency" | "paid_by" | "split_among" | "shares">[] | null }) {
   const { me, memberById, locale, t } = useFamily();
   if (expenses === null) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub="…" />;
   if (expenses.length === 0) return <HubTile href="/expenses" module="expenses" title={t("Expenses")} sub={t("One pays, the app splits")} empty />;

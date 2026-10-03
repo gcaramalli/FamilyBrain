@@ -972,4 +972,11 @@ export const sv: Record<string, string> = {
   "You owe {to} {amount}": "Du är skyldig {to} {amount}",
   "{from} owes you {amount}": "{from} är skyldig dig {amount}",
   "{from} owes {to} {amount}": "{from} är skyldig {to} {amount}",
+  "Usual split: {ratio}": "Vanlig fördelning: {ratio}",
+  "Split {ratio}, change it later by tapping the expense.": "Delas {ratio}, ändra genom att trycka på utgiften.",
+  "Split": "Fördelning",
+  "{amount} left to share out": "{amount} kvar att fördela",
+  "Usual split": "Vanlig fördelning",
+  "Used for each new expense. Past ones keep their split.": "Används för varje ny utgift. Tidigare behåller sin fördelning.",
+  "The total must be 100%": "Summan måste vara 100 %",
 };

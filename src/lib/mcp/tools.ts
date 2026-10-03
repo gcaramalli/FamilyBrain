@@ -13,7 +13,7 @@ import { ageInMonths } from "@/lib/dates";
 import { avgClock, minutesBetween, nightDay, sleepDays, sleepState } from "@/lib/sleep";
 import { CLOTHES_CATEGORIES, CLOTHES_CATEGORY_IDS, coldSeason, missingEssentials, probablyTooSmall } from "@/lib/wardrobe";
 import { findByName, HISTORY_DAYS, meetingAgenda, nextMeetingDate, peopleSummary, personItems, sortItems } from "@/lib/work";
-import { settleUp } from "@/lib/expenses";
+import { isEqual, settleUp } from "@/lib/expenses";
 import { deadlines, nextRenewal, PAPER_CATEGORIES, PAPER_CATEGORY_IDS, PERIOD_IDS, upcomingDeadlines, yearlyCost } from "@/lib/papers";
 import type { KidClothes, KidSleep, Paper, WorkItem, WorkMeeting, WorkPerson, WorkProject } from "@/lib/types";
 
@@ -1867,25 +1867,41 @@ export function registerTools(server: McpServer) {
     {
       title: "Log a shared expense",
       description:
-        "Log something one adult paid for the family (Home → Expenses); the app splits it equally between split_among (default: every adult with an account) and keeps who owes whom. settlement = true logs a payback instead: paid_by gave the amount to the single person in split_among. Returns the new balance.",
+        "Log something one adult paid for the family (Home → Expenses); the app keeps who owes whom. Split: the family's usual split by default (50/50 unless they set e.g. 60/40); split_among = only these people, equally; shares = an explicit split by first name, as percentages or amounts ({\"Guillaume\": 50, \"Jenny\": 39}). settlement = true logs a payback instead: paid_by gave the amount to the single person in split_among. Returns the new balance.",
       inputSchema: z.object({
         title: z.string().min(1).max(200).describe("Short, e.g. 'Toilet paper', 'Plumber'"),
         amount: z.number().positive(),
         currency: z.string().length(3).optional().describe("Default SEK"),
         paid_by: z.string().optional().describe("First name; default the speaker"),
-        split_among: z.array(z.string()).optional().describe("First names it was for; default all adults"),
+        split_among: z.array(z.string()).optional().describe("First names it was for, split equally; default the usual split between all adults"),
+        shares: z.record(z.string(), z.number().min(0)).optional().describe("Uneven split by first name: percentages or amounts"),
         date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("YYYY-MM-DD, default today"),
         settlement: z.boolean().optional(),
       }),
     },
-    async ({ title, amount, currency, paid_by, split_among, date, settlement }) => {
+    async ({ title, amount, currency, paid_by, split_among, shares, date, settlement }) => {
       const db = createAdminClient();
       const { data: people } = await db.from("members").select("id, name, profile_id").eq("family_id", familyId());
       const adults = (people ?? []).filter((m) => m.profile_id);
       const owner = mcpContext.getStore()?.profileId;
       const payer = paid_by ? await memberIdByName(paid_by) : adults.find((m) => m.profile_id === owner)?.id;
       if (!payer) throw new Error(`Who paid? Adults: ${adults.map((m) => m.name).join(", ")}`);
-      const among = split_among?.length ? await Promise.all(split_among.map((n) => memberIdByName(n) as Promise<string>)) : adults.map((m) => m.id);
+      let weights: Record<string, number> | null = null;
+      if (shares && !settlement) {
+        weights = {};
+        for (const [n, w] of Object.entries(shares)) weights[(await memberIdByName(n)) as string] = w;
+      } else if (!split_among?.length && !settlement) {
+        // The family's usual split (Expenses → Usual split); empty = equal.
+        const { data: st } = await db.from("expense_settings").select("shares").eq("family_id", familyId()).maybeSingle();
+        const usual = (st?.shares ?? {}) as Record<string, number>;
+        if (Object.keys(usual).length && !isEqual(usual, adults.map((m) => m.id))) weights = usual;
+      }
+      const among = weights
+        ? Object.keys(weights).filter((id) => weights![id] > 0)
+        : split_among?.length
+          ? await Promise.all(split_among.map((n) => memberIdByName(n) as Promise<string>))
+          : adults.map((m) => m.id);
+      if (!among.length) throw new Error("Nobody to split it between.");
       if (settlement && among.length !== 1) throw new Error("A payback goes to exactly one person: set split_among to them.");
       const { error } = await db.from("expenses").insert({
         family_id: familyId(),
@@ -1894,12 +1910,13 @@ export function registerTools(server: McpServer) {
         currency: (currency ?? "SEK").toUpperCase(),
         paid_by: payer,
         split_among: among,
+        shares: weights,
         spent_on: date ?? workToday(),
         settlement: !!settlement,
         created_by: createdBy(),
       });
       if (error) throw new Error(error.message);
-      const { data: all } = await db.from("expenses").select("amount, currency, paid_by, split_among").eq("family_id", familyId());
+      const { data: all } = await db.from("expenses").select("amount, currency, paid_by, split_among, shares").eq("family_id", familyId());
       const name = (id: string) => (people ?? []).find((m) => m.id === id)?.name ?? "?";
       const owes = settleUp(all ?? []).map((x) => `${name(x.from)} owes ${name(x.to)} ${x.amount} ${x.currency}`);
       return text(`Logged. Balance: ${owes.join("; ") || "all square"}.`);
@@ -1917,7 +1934,7 @@ export function registerTools(server: McpServer) {
       const db = createAdminClient();
       const [{ data: people }, { data: all }] = await Promise.all([
         db.from("members").select("id, name").eq("family_id", familyId()),
-        db.from("expenses").select("title, amount, currency, paid_by, split_among, spent_on, settlement").eq("family_id", familyId()).order("spent_on", { ascending: false }),
+        db.from("expenses").select("title, amount, currency, paid_by, split_among, shares, spent_on, settlement").eq("family_id", familyId()).order("spent_on", { ascending: false }),
       ]);
       const name = (id: string) => (people ?? []).find((m) => m.id === id)?.name ?? "?";
       const since = new Date(Date.now() - (days ?? 60) * 86400000).toISOString().slice(0, 10);
@@ -1932,6 +1949,7 @@ export function registerTools(server: McpServer) {
             currency: e.currency,
             paid_by: name(e.paid_by),
             for: e.split_among.map(name),
+            split: e.shares ? Object.fromEntries(Object.entries(e.shares as Record<string, number>).map(([id, w]) => [name(id), w])) : "equal",
           })),
       });
     },

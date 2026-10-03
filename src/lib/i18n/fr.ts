@@ -972,4 +972,11 @@ export const fr: Record<string, string> = {
   "You owe {to} {amount}": "Tu dois {amount} à {to}",
   "{from} owes you {amount}": "{from} te doit {amount}",
   "{from} owes {to} {amount}": "{from} doit {amount} à {to}",
+  "Usual split: {ratio}": "Répartition habituelle : {ratio}",
+  "Split {ratio}, change it later by tapping the expense.": "Partagé {ratio}, modifiable en touchant la dépense.",
+  "Split": "Répartition",
+  "{amount} left to share out": "Reste {amount} à répartir",
+  "Usual split": "Répartition habituelle",
+  "Used for each new expense. Past ones keep their split.": "Utilisée pour chaque nouvelle dépense. Les anciennes gardent la leur.",
+  "The total must be 100%": "Le total doit faire 100 %",
 };
